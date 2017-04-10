@@ -185,11 +185,6 @@ Module Lam_KES_CBN_PreRefSem <: PRE_REF_SEM.
 
 
   Definition init_ckind : ckind     := tt.
-  (*Definition dead_ckind (_ : ckind) := False.*)
-
-  (*Instance dead_is_comp : CompPred _ dead_ckind.
-      split. auto.
-  Defined.*)
 
 
   Definition contract {k} (r : redex k) : option term :=
@@ -241,13 +236,6 @@ Module Lam_KES_CBN_PreRefSem <: PRE_REF_SEM.
   Notation "t1 <| t2" := (subterm_order t1 t2)           (at level 70, no associativity).
 
 
-
-  (*Lemma init_ckind_alive :
-      ~dead_ckind init_ckind.
-
-  Proof. auto. Qed.*)
-
-
   Lemma elem_plug_injective1 : forall {k1 k2} (ec : elem_context_kinded k1 k2) {t0 t1},
       ec:[t0] = ec:[t1] -> t0 = t1.
 
@@ -278,18 +266,6 @@ Module Lam_KES_CBN_PreRefSem <: PRE_REF_SEM.
                 eauto using plist2list_injective ].
     - destruct (pcons2_injective _ _ _ _ H3); subst; auto.
   Qed.
-
-
-  (*Lemma death_propagation :                                                  forall k ec,
-      dead_ckind k -> dead_ckind (k+>ec).
-
-  Proof. auto. Qed.*)
-
-
-  (*Lemma proper_death :                                                          forall k,
-      dead_ckind k -> ~ exists (r : redex k), True.
-
-  Proof. auto. Qed.*)
 
 
   Lemma value_trivial1 :
@@ -615,12 +591,6 @@ Module Lam_KES_CBN_Strategy <: REF_STRATEGY Lam_KES_CBN_PreRefSem.
   Qed.
 
 
-  (*Lemma dec_term_from_dead :                                                  forall t k,
-      dead_ckind k -> dec_term t k = in_dead.
-
-  Proof. inversion 1. Qed.*)
-
-
   Lemma dec_context_correct :            forall {k k'} (ec : elem_context_kinded k k') v,
       match dec_context ec v with
       | ed_red r      => ec:[v] = r
@@ -635,42 +605,6 @@ Module Lam_KES_CBN_Strategy <: REF_STRATEGY Lam_KES_CBN_PreRefSem.
     - unfold elem_plug. 
       repeat (f_equal; eauto using pcons2_and_pcons).
   Qed.
-
-
-  (*Lemma dec_context_from_dead :                          forall ec k (v : value (k+>ec)),
-      dead_ckind (k+>ec) -> dec_context ec k v = in_dead.
-
-  Proof. inversion 1. Qed.
-
-
-  Lemma dec_term_next_alive : forall t k {t0 ec0}, 
-      dec_term t k = ed_dec t0 ec0 -> ~ dead_ckind (k+>ec0).
-  Proof. auto. Qed.
-
-
-  Lemma dec_context_next_alive : forall ec k v {t0 ec0}, 
-      dec_context ec k v = ed_dec t0 ec0 -> ~ dead_ckind (k+>ec0).
-  Proof. auto. Qed.*)
-
-
-  (*Lemma dec_context_not_val :
-      forall ec {k} (v1 : value k) v0, 
-          dec_context ec k v0 <> ed_val v1.
-  Proof.
-    intros ec k v1 v0 H.
-    destruct ec, k, v0.
-    destruct p1;
-    inversion H.
-  Qed.*)
-
-
-  (*Lemma dec_term_value : 
-      forall {k} (v : value k), dec_term v k = ed_val v.
-  Proof.
-    intros k v.
-    destruct v, k.
-    auto.
-  Qed.*)
 
 
   Inductive elem_context_in k : Set :=
@@ -818,8 +752,6 @@ Qed.
 Require Import refocusing_machine.
 
 Module EAKrivineMachine := RefEvalApplyMachine Lam_KES_CBN_RefSem.
-(*Module KrivinMachine := 
-    RefPushEnterMachine Lam_KES_CBN_Cal.RedLang Lam_KES_CBN_RefSem.*)
 
 
 Module Example.
@@ -842,7 +774,7 @@ Module Example.
 
   Example t_id_term := App t id_term.
 
-  Example t_id_step_closed : 
+  Example t_id_step_closed :
       exists st, (@c_eval t tt (id_term=:[.])) → st /\ closed (decompile st).
 
   Proof with simpl; eauto.

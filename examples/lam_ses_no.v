@@ -133,7 +133,7 @@ Module Lam_SES_NO_PreRefSem <: PRE_REF_SEM.
   (* the second parameter is the kind of the hole, i.e., the (unique) nonterminal *)
   (* occurring on the right-hand side of a production. *) 
 
-  Inductive eck : ckind -> ckind -> Set :=      
+  Inductive eck : ckind -> ckind -> Set :=
   | lam_c  : eck Eᵏ Eᵏ                                             (* E -> \lambda E *)
   | ap_r   : forall k : EF_kind, term  -> eck k Fᵏ     (* E -> F e ; F -> F e *) 
   | ap_l   : forall k : EF_kind, valCa -> eck k Eᵏ     (* E -> a E ; F -> a E *) 
@@ -498,7 +498,7 @@ Module Lam_SES_NO_Strategy <: REF_STRATEGY Lam_SES_NO_PreRefSem.
   we have to do some dirty tricks.  *)
 
 
-  
+
   Program Definition dec_context
           {k k' : ckind} (ec : elem_context_kinded k k') (v : value k') : elem_dec k :=
 

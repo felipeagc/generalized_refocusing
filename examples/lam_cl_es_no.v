@@ -338,11 +338,6 @@ destruct t1, t2; destruct n0, n; autof ].
       end.
 
 
-(*  Instance dead_is_comp : CompPred ckind dead_ckind.
-      split. destruct x; auto.
-  Defined.*)
-
-
   Lemma valCa_is_valECa : 
       forall v1 : valCa, exists v2 : value ECa,  value_to_term v2 = valCa_to_term0 v1.
 
@@ -576,26 +571,6 @@ Module Lam_ClES_NO_Strategy <: REF_STRATEGY Lam_ClES_NO_PreRefSem.
     simpl;
     try solve [ auto ].
   Qed.
-
-
-(*  Lemma dec_context_from_dead : forall ec k v, 
-      dead_ckind (k+>ec) -> dec_context ec k v = in_dead.
-
-  Proof.
-    intros ec k v H.
-    destruct ec, k;
-    solve [ autof ].
-  Qed.
-
-
-  Lemma dec_context_next_alive : forall ec k v {t ec0}, 
-      dec_context ec k v = ed_dec t ec0 -> ~ dead_ckind (k+>ec0).
-
-  Proof.
-    intros ec k v t ec0 H.
-    destruct ec, ec0, k; dependent destruction v;  
-    solve [ autof ].
-  Qed.*)
 
 
   Inductive elem_context_in k : Set :=

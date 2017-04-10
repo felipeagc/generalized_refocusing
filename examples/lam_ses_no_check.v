@@ -12,6 +12,9 @@ Require Import Util
 
 
 
+(* The module contains a hand-made refocusing (decomposition) procedure for the language
+   defined in lam_ses_no.v and a proof that the automatically generated procedure is
+   equivalent to it *)
 
 Module Lam_SES_NO_HandDecProc.
 
@@ -19,16 +22,11 @@ Module Lam_SES_NO_HandDecProc.
   Import Lam_SES_NO_PreRefSem RF.
 
 
-  (* tu jest recznie zdefiniowana procedura refokusingu i kazdy widzi ze ona realizuje strategie normal order *)
+  (* The refocusing procedure in the form of inference rules.
+     - refocus_in decomposes a term in a context
+     - refocus_out backtracks from a value and looks for a redex in a context above *)
 
-(* pokazemy ze ta recznie zdefiniowana procedura pokrywa sie z automatycznie generowana prodedura *)
-
-  
   Inductive refocus_in {k1} :  forall {k2}, term -> context k1 k2 -> decomp k1 -> Prop :=
-
-(* reguly dla szukania redeksu (lub stwierdzenia ze go nie ma) *)
-(* robimy dekompozycje na kontekst i redeks lub stwierdzamy ze calosc jest wartoscia*)
-    
   | d_Var    : forall n {k2} (c : context k1 k2) d,
                  refocus_out (vVar n k2) c d ->
                  refocus_in (Var n) c d
@@ -37,39 +35,19 @@ Module Lam_SES_NO_HandDecProc.
                  refocus_in t (lam_c =: c) d -> (*!*)
                  refocus_in (Lam t) c d
   | d_LamF   : forall t (c : context k1 Fᵏ) d,
-                 refocus_out (vFLam t) c d -> (*!*)
+                 refocus_out (vFLam t) c d ->   (*!*)
                  refocus_in (Lam t) c d
   | d_LamD   : forall t (c : context k1 Dᵏ) d,
-                 refocus_out (vDLam t) c d -> (*!*)
+                 refocus_out (vDLam t) c d ->   (*!*)
                  refocus_in (Lam t) c d
 
   | d_App    : forall t1 t2 {k2 : EF_kind} (c : context k1 k2) d,
-                 refocus_in t1 (ap_r _ t2 =: c) d ->  (* jesli w dostajemy wynik d dla t1 w kontekscie c[[] @ t2] *)
-                 refocus_in (App t1 t2) c d          (* to dostajemy wynik d  (dekompozycja) dla aplikacji (t1 t2) w kontekscie c *)
-
-(* czyli to byla regula
-c[[t1]@t2]⇓*d
------------
-c[t1@t2]⇓*d
-
-przy czym ⇓ na dole startujemy z dowolnego z kindow E i F a na gorze z F
-
-rozwazyc jawne dopisanie kindu gdzies w tych regulach
-
-*)
-
+                 refocus_in t1 (ap_r k2 t2 =: c) d ->
+                 refocus_in (App t1 t2) c d
 
   | d_AppD   : forall t1 t2 (c : context k1 Dᵏ) d,
                  refocus_out (vDApp t1 t2) c d ->
                  refocus_in (App t1 t2) c d
-
-(*
-c[t1 @ t2]⇑*d
-------------
-c[t1 @ t2]⇓*d
-
-tu strzalka w gore jest rodzaju D 
-*)
 
   | d_Sub    : forall t1 n t2 {k2} (c : context k1 k2) d,
                  refocus_in t1 (esub_c _ (n, st_sub t2) =: c) d ->
@@ -79,6 +57,21 @@ tu strzalka w gore jest rodzaju D
                  refocus_in t1 (esub_c _ (n, st_shift m) =: c) d ->
                  refocus_in (Shift t1 n m) c d
 
+
+  (* E.g., the constructor d_App stands for the rule
+
+   refocus_in(t1, c[[]_F t2]) = d
+  -------------------------------- for k = E,F
+   refocus_in(t1 t2, c[[]_k]) = d
+
+
+  and the constructor d_AppD for the rule
+
+   refocus_out(t1 t2, c[[]_D])
+  -----------------------------
+   refocus_in(t1 t2, c[[]_D])
+
+  *)
 
   with refocus_out {k1} : forall {k2}, value k2 ->
                               context k1 k2 -> decomp k1 -> Prop :=
@@ -126,26 +119,35 @@ tu strzalka w gore jest rodzaju D
 
   | dc_sub_cApp   : forall t1 t2 d {k2} (c : context k1 k2),
                        refocus_out (vDApp t1 t2) (esub_c _ d =: c)
-                                   (d_red (rSubApp k2 t1 t2 d) c)
-.
+                                   (d_red (rSubApp k2 t1 t2 d) c).
+
+  (* E.g., the constructor d_App stands for the rule
+
+  ------------------------------------------------------
+   refocus_out(\t0, c[[[]_F t]_E]) = ((\t0) t, c[[]_E])
+
+  *)
 
   Scheme refocus_in_Ind  := Induction for refocus_in  Sort Prop
     with refocus_out_Ind := Induction for refocus_out Sort Prop.
 
-(* dirty hack used to automatize unification *)
-Lemma d_App': forall k1 t1 t2  (c : context k1 Eᵏ) (c' : context k1 Eᵏ') d,
-    c=c'    -> refocus_in t1 (ap_r _ t2 =: c') d ->  
-                 refocus_in (App t1 t2) c d.
-Proof.
-intros. 
-  apply (@d_App _ t1 t2 Eᵏ' ). rewrite H;auto.
-Qed.
-  
+
+  (* A dirty hack used to automatize unification *)
+  Lemma d_App': forall k1 t1 t2  (c : context k1 Eᵏ) (c' : context k1 Eᵏ') d,
+      c = c' -> refocus_in t1 (ap_r _ t2 =: c') d -> refocus_in (App t1 t2) c d.
+
+  Proof.
+    intros.
+    apply (@d_App _ t1 t2 Eᵏ' ). rewrite H;auto.
+  Qed.
+
+
+  (* This module conatians a generated refocusing procedure *)
   Module RS := Lam_SES_NO_RefSem.
-(* to jest automatycznie wygenerowana procedura refokusingu w duzych krokach *)
 
   Hint Constructors RS.refocus_in RS.refocus_out refocus_in refocus_out.
   Hint Transparent Lam_SES_NO_Strategy.dec_term Lam_SES_NO_Strategy.dec_context.
+
 
   Theorem refocus_in_eqv_RS :                       forall {k1 k2} (c : context k1 k2) t d,
       refocus_in t c d <-> RS.refocus_in t c d.
@@ -156,87 +158,35 @@ Qed.
   (* -> *) {
     induction H using refocus_in_Ind with
     (P0 := fun _ v c d _ => RS.refocus_out v c d);
-    try solve 
-    [ try destruct k2; eautof
+    solve
+    [ try destruct k2; simpl in *; eautof
     | match goal with c : RS.context _ ?k |- RS.refocus_out _ (?ec =: c) _ => 
       solve
       [ eapply (RS.ro_red ec c); eauto
       | eapply (RS.ro_val ec c); eauto
       | eapply (RS.ro_step ec c); eauto ]
       end ].
-
-    (* nie wiadomo czemu zostal jeden przypadek dla aplikacji prawej *)
-    destruct k2; eapply RS.ri_step; unfold  Lam_SES_NO_Strategy.dec_term. 
-    reflexivity. assumption.
-    reflexivity. assumption.
   }
 
   (* <- *) {
     induction H using RS.refocus_in_Ind with
-    (P0 := fun _ v c d _ => refocus_out v c d); 
+    (P0 := fun _ v c d _ => refocus_out v c d);
     try match goal with
-    | H : RS.ST.dec_term ?t ?k = _        |- _ => destruct t, k; 
-                                                  dependent destruction H; subst
-    | H : RS.ST.dec_context ?ec ?v = _ |- _ => dependent destruction k; 
-                                                  dependent destruction ec;  
-                                                  dependent_destruction2 v; 
-                                                  dependent_destruction2 H; subst
-    end; eauto.
- 
-    apply d_App' with (c':=c); auto.  (* was it worth introducing the dirty hack? Probably no. *)
-    eapply (@d_App _ t0 t2 Fᵏ' c d); auto.
-
-(***********)
-    destruct ec. simpl in e.    
-    dependent_destruction2 e.
-    dependent_destruction2 v.
-    dependent_destruction2 k; dependent_destruction2 e.
-    apply dc_ap_rLamE.
-    apply dc_ap_rLamF.
-
-    simpl in e; dependent destruction k;   inversion e.
-    simpl in e; dependent destruction k;   inversion e.
-    simpl in e; dependent destruction k;   inversion e.
-
-
-    dependent_destruction2 v; dependent_destruction2 e.
-    apply dc_sub_cLam.
-    apply dc_sub_cVar.
-    apply dc_sub_cApp.         
-
-(***********)
-    destruct ec. simpl in e.    
-    dependent_destruction2 e; apply dc_lam_cE; auto.
-
-    dependent_destruction2 v;  dependent destruction k; inversion e. 
-    dependent destruction k; dependent_destruction2 e.
-    apply dc_ap_lE; auto.
-    apply dc_ap_lF; auto.
-    dependent destruction v; inversion e.  
-
-(***********)
-
-    destruct ec. simpl in e.    
-    dependent_destruction2 e. 
-
-    dependent_destruction2 v.
-    dependent_destruction2 k; dependent destruction e. 
-
-    dependent_destruction2 k; dependent destruction e.
-    apply dc_ap_rVarE; auto.     
-    apply dc_ap_rVarF; auto.     
-
-    dependent_destruction2 k; dependent destruction e.
-    apply dc_ap_rAppE;auto.
-    apply dc_ap_rAppF;auto.
-
-    dependent destruction k; dependent_destruction2 e.
-
-    dependent destruction v;  dependent_destruction2 e.
-
- } 
-
-Qed.
+    | H : RS.ST.dec_term ?t ?k = _     |- _ => destruct t, k;
+                                                  dependent destruction H; subst;
+                                                  try eapply (@d_App _ t0 t2 Eᵏ' c d);
+                                                  try eapply (@d_App _ t0 t2 Fᵏ' c d)
+    | H : RS.ST.dec_context ?ec ?v = _ |- _ => dependent destruction ec;
+                                                  destruct_all EF_kind;
+                                                  dependent_destruction2 v;
+                                                  match goal with
+                                                  | H : RS.ST.dec_context ?ec ?v = _ |- _
+                                                    => dependent_destruction2 H; subst
+                                                  end
+    end;
+    eauto.
+  }
+  Qed.
 
 
   Theorem refocus_out_eqv_RS :                    forall {k1 k2} (c : context k1 k2) v d,
@@ -245,95 +195,39 @@ Qed.
   Proof.
     intros k1 k2 c v d; split; intro H.
 
-  (* -> *) { 
+  (* -> *) {
     induction H using refocus_out_Ind with
-    (P := fun _ t c d _ => RS.refocus_in t c d); 
-    try solve 
-    [ try destruct k2; eautof
-    | match goal with c : RS.context _ ?k |- RS.refocus_out _ (?ec =: c) _ => 
+    (P := fun _ t c d _ => RS.refocus_in t c d);
+    try solve
+    [ try destruct k2; simpl in *; eautof
+    | match goal with c : RS.context _ ?k |- RS.refocus_out _ (?ec =: c) _ =>
       solve
-      [ eapply (RS.ro_red ec c); eauto
-      | eapply (RS.ro_val ec c); eauto
+      [ eapply (RS.ro_red ec c);  eauto
+      | eapply (RS.ro_val ec c);  eauto
       | eapply (RS.ro_step ec c); eauto ]
       end ].
-     (* nie wiadomo czemu zostal jeden przypadek dla aplikacji prawej *)
-    destruct k2; eapply RS.ri_step; unfold  Lam_SES_NO_Strategy.dec_term. 
-    reflexivity. assumption.
-    reflexivity. assumption.
- }
+  }
 
   (* <- *) {
     induction H using RS.refocus_out_Ind with
-    (P := fun _ t c d _ => refocus_in t c d).
+    (P := fun _ t c d _ => refocus_in t c d);
 
     try match goal with
-    | H : RS.ST.dec_term ?t ?k = _        |- _ => destruct t, k; 
-                                                  dependent destruction H; subst
-    | H : RS.ST.dec_context ?ec ?k ?v = _ |- _ => destruct ec, k; 
-                                                  dependent_destruction2 v; 
-                                                  inversion H; subst
-    end; 
-    solve [eauto].
-
-    destruct t, k2;
-    dependent_destruction2 v;
-    dependent_destruction2 e; auto.
-
-    destruct t, k2; dependent_destruction2 e; auto.
-    eapply (@d_App _ t0 t2 Eᵏ' c d); auto.
-    eapply (@d_App _ t0 t2 Fᵏ' c d); auto.
-
-    auto.
-
-    destruct ec. simpl in e.    
-    dependent_destruction2 e.
-    dependent_destruction2 v.
-    dependent_destruction2 k; dependent_destruction2 e.
-    apply dc_ap_rLamE.
-    apply dc_ap_rLamF.
-
-    simpl in e; dependent destruction k;   inversion e.
-    simpl in e; dependent destruction k;   inversion e.
-    simpl in e; dependent destruction k;   inversion e.
-
-
-    dependent_destruction2 v; dependent_destruction2 e.
-    apply dc_sub_cLam.
-    apply dc_sub_cVar.
-    apply dc_sub_cApp.         
-
-
-(***********)
-    destruct ec. simpl in e.    
-    dependent_destruction2 e; apply dc_lam_cE; auto.
-
-    dependent_destruction2 v;  dependent destruction k; inversion e. 
-    dependent destruction k; dependent_destruction2 e.
-    apply dc_ap_lE; auto.
-    apply dc_ap_lF; auto.
-    dependent destruction v; inversion e.  
-
-(***********)
-
-    destruct ec. simpl in e.    
-    dependent_destruction2 e. 
-
-    dependent_destruction2 v.
-    dependent_destruction2 k; dependent destruction e. 
-
-    dependent_destruction2 k; dependent destruction e.
-    apply dc_ap_rVarE; auto.     
-    apply dc_ap_rVarF; auto.     
-
-    dependent_destruction2 k; dependent destruction e.
-    apply dc_ap_rAppE;auto.
-    apply dc_ap_rAppF;auto.
-
-    dependent destruction k; dependent_destruction2 e.
-
-    dependent destruction v;  dependent_destruction2 e.
-}    
-
+    | H : RS.ST.dec_term ?t ?k = _     |- _ => destruct t, k; 
+                                                  dependent_destruction2 H; subst;
+                                                  try eapply (@d_App _ t0 t2 Eᵏ' c d);
+                                                  try eapply (@d_App _ t0 t2 Fᵏ' c d)
+    | H : RS.ST.dec_context ?ec ?v = _ |- _ => dependent_destruction2 ec;
+                                                  destruct_all EF_kind;
+                                                  dependent_destruction2 v;
+                                                  dependent_destruction2 H; subst;
+                                                  try match goal with
+                                                  | H : RS.ST.dec_context ?ec ?v = _ |- _
+                                                    => dependent_destruction2 H; subst
+                                                  end
+    end;
+    eauto.
+  }
   Qed.
 
 End Lam_SES_NO_HandDecProc.
@@ -341,20 +235,21 @@ End Lam_SES_NO_HandDecProc.
 
 
 
+(* The module contains a hand-made abstract machine for the language
+   defined in lam_ses_no.v and a proof that the automatically generated machine is
+   equivalent to it *)
 
 Module Lam_SES_NO_HandMachine <: ABSTRACT_MACHINE.
 
-  Import Lam_SES_NO_EAM Lam_SES_NO_PreRefSem. (* tu w srodku siedzi np definicja termu *)
+  Import Lam_SES_NO_EAM Lam_SES_NO_PreRefSem.
 
 
-  Definition term          := term.  (* i tu to co dostalismy podczepiamy do zmiennych lokalnych  modulu wymaganych przez sygnature *)
+  Definition term          := term.
   Definition value         := value init_ckind.
   Definition configuration := configuration.
   Definition load          := load.
   Definition final         := final.
   Definition is_final c    := exists v, final c = Some v.
-
-(* zamienic C na Eᵏ *)
 
 
   Notation "[$ t $]"       := ( (c_eval t [.]) : configuration)                      (t at level 99).
@@ -364,43 +259,25 @@ Module Lam_SES_NO_HandMachine <: ABSTRACT_MACHINE.
   Notation "[: c , v  :]"     := (c_apply c v )                (c, v at level 99).
   Notation "[: ( ec , k ) =: c , v  :]" := 
       (c_apply (@ccons _ k _  ec c) v )                       (ec, k, c, v at level 99).
-(* sprawdzic ktorym parametrem @ccons ma byc k *)
-(* raczej nie pierwszym *)
-(* co oznacza ta notacja ?*)
-  
-  (* ta notacja oznacza konfiguracje apply, czyli continue, w ktorej *)
-  (* kontekst jest niepusty i szczytowa ramka jest wyciagnieta *)
-  (* k jest kindem laczacym ec z c *)
 
   Definition dnext_conf (st : configuration) : option configuration :=
       match st with
 
-(* eval *)
       | [$ Var n, k, c $]   => Some [: c, vVar n k :]
-(* zmienna jest wartoscia *)
+
       | [$ Lam t, Dᵏ, c $] => Some [: c, vDLam t :]
       | [$ Lam t, Fᵏ, c $] => Some [: c, vFLam t :]
-(* lambdy sa wartosciami rodzaju  Dᵏ i Fᵏ *) 
       | [$ Lam t, Eᵏ, c $] => Some [$ t, Eᵏ, lam_c =: c $]
-(* w podstrategii E schodzimy pod lambde *)
 
-                                   
       | [$ App t1 t2, Dᵏ, c $]  => Some [: c, vDApp t1 t2 :]
-(* aplikacja w D jest wartoscia *)                                        
       | [$ App t1 t2, Fᵏ, c $]  => Some [$ t1, Fᵏ, (ap_r Fᵏ' t2) =: c  $]
       | [$ App t1 t2, Eᵏ, c $]  => Some [$ t1, Fᵏ, (ap_r Eᵏ' t2) =: c  $]
-(* aplikacja w E i F każe zejsc w lewy podterm, odkladajac na stosie
-kontekst elementarny z prawym podtermem *)
-                                        
+
       | [$ Sub t1 j t2,  k, c $] => Some [$ t1, _, esub_c _ (j, st_sub t2) =: c $]
-(* w termie t1 pod j-ta zmienna podstawiamy t2 *)
-(* i robimy to ewaluujac t1 w kontekscie poszerzonym o to podstawienie *)
       | [$ Shift t1 j g, k, c $] => Some [$ t1, _, esub_c _ (j, st_shift g) =: c $]
-(* przeindeksowanie indeksu debrałna robi sie analogicznie *)
 
        (* aux_D *)
 
-(* apply *)
        | [: esub_c _ d =: c, vDApp t1 t2 :] => 
                                       Some [$ contract0 (rSubApp Dᵏ t1 t2 d), _, c$]
 
@@ -435,7 +312,7 @@ kontekst elementarny z prawym podtermem *)
        | [: (lam_c, Eᵏ)   =: c, v :]  => Some [: c, vELam v :]
 
        | _ => None
-       end. 
+       end.
 
   Definition next_conf (_ : entropy) := dnext_conf.
 
@@ -455,20 +332,18 @@ kontekst elementarny z prawym podtermem *)
   Fact trans_computable :                                                 forall st1 st2,
        `(rws) st1 → st2 <-> exists e, next_conf e st1 = Some st2.
 
-  Proof. 
-   intuition. 
+  Proof.
+   intuition.
    - destruct (draw_fin_correct 1 Fin.F1) as [e _]; exists e; auto.
    - destruct H; eauto.
   Qed.
-
-
 
 
   Theorem dnext_conf_eq_EAM :                                                  forall st,
       dnext_conf st = Lam_SES_NO_EAM.dnext_conf st.
 
   Proof. intro st.
-    destruct st.  
+    destruct st.
     - destruct t, k; eauto.
     - dependent destruction c.
       eauto.

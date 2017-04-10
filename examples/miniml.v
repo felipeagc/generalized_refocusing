@@ -69,23 +69,9 @@ Module MiniML_PreRefSem <: PRE_REF_SEM.
   Definition elem_context_kinded (_ _ : ckind) : Set := ec.
 
 
-  (*Definition erase_kinds {k1 k2} (e : elem_context_kinded k1 k2) : elem_context := e.
-  Coercion erase_kinds : elem_context_kinded >-> elem_context.*)
-
-
-(*  Definition ckind_trans (_ : ckind) (_ : elem_context) : ckind := ().
-  Notation "k +> ec" := (ckind_trans k ec) (at level 50, left associativity).*)
-
-
   Definition init_ckind : ckind := ().
-(*  Definition dead_ckind (_ : ckind) := False.*)
-  Hint Unfold init_ckind (*dead_ckind*).
+  Hint Unfold init_ckind.
 
-
-(*  Inductive context (k1 : ckind) : ckind -> Set :=
-  | empty : context k1 k1
-  | ccons : forall (ec : elem_context) {k2}, context k1 k2 -> context k1 (k2+>ec).
-  Arguments empty {k1}. Arguments ccons {k1} _ {k2} _. *)
 
   Inductive context (k1 : ckind) : ckind -> Set :=
   | empty : context k1 k1
@@ -122,17 +108,6 @@ Module MiniML_PreRefSem <: PRE_REF_SEM.
   Coercion redex_to_term : redex >-> term.
 
 
-(*  Instance dead_is_comp : CompPred ckind dead_ckind.
-      split. auto. 
-  Defined.*)
-
-
-(*  Lemma init_ckind_alive :
-      ~dead_ckind init_ckind.
-
-  Proof. auto. Qed. *)
-
-
   Lemma value_to_term_injective : 
       forall {k} (v v' : value k), value_to_term v = value_to_term v' -> v = v'.
 
@@ -159,14 +134,6 @@ Module MiniML_PreRefSem <: PRE_REF_SEM.
     solve [ f_equal; auto using value_to_term_injective ].
   Qed.
 
-
-
-(*  Fixpoint compose {k1 k2} (c0 : context k1 k2) 
-                      {k3} (c1 : context k3 k1) : context k3 k2 := 
-      match c0 in context _ k2' return context k3 k2' with
-      | [.]     => c1
-      | ec=:c0' => ec =: compose c0' c1
-      end. *)
 
   Fixpoint compose {k1 k2} (c0 : context k1 k2) 
                       {k3} (c1 : context k3 k1) : context k3 k2 := 
@@ -216,16 +183,6 @@ Module MiniML_PreRefSem <: PRE_REF_SEM.
       exists t', ec:[t'] = t.
 
 
-(*  Lemma death_propagation : 
-      forall k ec, dead_ckind k -> dead_ckind (k+>ec).
-
-  Proof. auto. Qed.*)
-
-
-(*  Lemma proper_death : forall k, dead_ckind k -> ~ exists (r : redex k), True.
-  Proof. auto. Qed. *)
-
-
   Parameter subst : var -> term -> term -> term.
 
   Definition contract {k} (r : redex k) : option term :=
@@ -241,10 +198,6 @@ Module MiniML_PreRefSem <: PRE_REF_SEM.
       end.
   Notation contract' := (@contract ()).
 
-
-(*  Lemma value_trivial1 : forall {k} ec t, 
-      forall (v : value k), ~dead_ckind (k+>ec) -> ec:[t] = v ->
-          exists (v' : value (k+>ec)), t = v'. *)
 
   Lemma value_trivial1 :
   forall {k1 k2} (ec:elem_context_kinded k1 k2) t,
@@ -264,10 +217,6 @@ Module MiniML_PreRefSem <: PRE_REF_SEM.
     destruct v; destruct r; intro H; discriminate H.
   Qed.
 
-
-(*  Lemma redex_trivial1 : forall {k} (r : redex k) ec t,
-                             ~dead_ckind (k+>ec) -> ec:[t] = r -> 
-                                 exists (v : value (k+>ec)), t = v.*)
 
   Lemma redex_trivial1 : forall {k k'} (r : redex k) (ec : elem_context_kinded k k') t,
                              ec:[t] = r -> 
@@ -391,19 +340,6 @@ Module MiniML_Strategy <: REF_STRATEGY MiniML_PreRefSem.
   Qed.
 
 
-(*  Lemma dec_term_from_dead : forall t k, dead_ckind k -> dec_term t k = in_dead.
-  Proof.
-    intros ? k H.
-    inversion H.
-  Qed. 
-
-
-  Lemma dec_term_next_alive : 
-      forall t k t0 ec0, dec_term t k = ed_dec t0 ec0 -> ~ dead_ckind (k+>ec0).
-
-  Proof. auto. Qed. *)
-
-
   Lemma dec_context_correct :            forall {k k'} (ec : elem_context_kinded k k') v,
       match dec_context ec v with
       | ed_red r      => ec:[v] = r
@@ -417,21 +353,6 @@ Module MiniML_Strategy <: REF_STRATEGY MiniML_PreRefSem.
     simpl;
     solve [ auto ].
   Qed.
-
-
-(*  Lemma dec_context_from_dead : forall ec k v, 
-      dead_ckind (k+>ec) -> dec_context ec k v = in_dead.
-
-  Proof.
-    intros ec k v H.
-    inversion H.
-  Qed.
-
-
-  Lemma dec_context_next_alive : forall ec k v {t ec0}, 
-      dec_context ec k v = ed_dec t ec0 -> ~ dead_ckind (k+>ec0).
-
-  Proof. auto. Qed. *)
 
 
   Inductive elem_context_in k : Set :=
