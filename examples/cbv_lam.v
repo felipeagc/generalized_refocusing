@@ -327,15 +327,15 @@ Module Lam_cbv_Strategy <: REF_STRATEGY Lam_cbv_PreRefSem.
 
   (* Here we define the two functions: up arrow and down arrow. *)
   (* We start by defining the type returned by these functions.  *)
-  (* They return that the input term is either a redex (in_red) *)
-  (* or a value (in_val) or that we have to continue searching  *)
-  (* inside a subterm (in_term) *)  
-  Inductive interm_dec k : Set :=
-  | in_red  : redex k -> interm_dec k
-  | in_term : forall k', term -> elem_context_kinded k k' -> interm_dec k
-  | in_val  : value k -> interm_dec k.
-  Arguments in_red {k} _.       Arguments in_val {k} _.
-  Arguments in_term {k} k' _ _.
+  (* They return that the input term is either a redex (ed_red) *)
+  (* or a value (ed_val) or that we have to continue searching  *)
+  (* inside a subterm (ed_dec) *)  
+  Inductive elem_dec k : Set :=
+  | ed_red  : redex k -> elem_dec k
+  | ed_dec : forall k', term -> elem_context_kinded k k' -> elem_dec k
+  | ed_val  : value k -> elem_dec k.
+  Arguments ed_red {k} _.       Arguments ed_val {k} _.
+  Arguments ed_dec {k} k' _ _.
 
 
   
@@ -348,12 +348,12 @@ Module Lam_cbv_Strategy <: REF_STRATEGY Lam_cbv_PreRefSem.
   (this should never happen if we start with a closed term). The third
   rule says that when we evaluate a lambda abstraction, we already
   have a value.  *)
-  Definition dec_term t k : interm_dec k :=
+  Definition dec_term t k : elem_dec k :=
     match k with Cᵏ => 
                  match t with
-                 | App t1 t2 => in_term  Cᵏ t1 (ap_r t2)
-                 | Var x     => in_red (rStuck x) 
-                 | Lam x t1  => in_val (vLam x t1)
+                 | App t1 t2 => ed_dec  Cᵏ t1 (ap_r t2)
+                 | Var x     => ed_red (rStuck x) 
+                 | Lam x t1  => ed_val (vLam x t1)
                  end
     end.
 
@@ -364,9 +364,9 @@ Module Lam_cbv_Strategy <: REF_STRATEGY Lam_cbv_PreRefSem.
 
   Lemma dec_term_correct : 
     forall (t : term) k, match dec_term t k with
-                         | in_red r      => t = r
-                         | in_val v      => t = v
-                         | in_term _ t' ec => t = ec:[t']
+                         | ed_red r      => t = r
+                         | ed_val v      => t = v
+                         | ed_dec _ t' ec => t = ec:[t']
                          end.
   Proof.
     destruct k,t ; simpl; auto.
@@ -380,11 +380,11 @@ Module Lam_cbv_Strategy <: REF_STRATEGY Lam_cbv_PreRefSem.
 
   (* Here we would like to define this function as follows.
   
-  Definition dec_context {k k': ckind} (ec: elem_context_kinded k k') (v: value k') : interm_dec k := 
+  Definition dec_context {k k': ckind} (ec: elem_context_kinded k k') (v: value k') : elem_dec k := 
     match ec with 
-    | ap_r t => in_term k' t (ap_l v) 
+    | ap_r t => ed_dec k' t (ap_l v) 
     | ap_l v' => match v' with 
-                 | vLam x t => in_red (rApp x t v) 
+                 | vLam x t => ed_red (rApp x t v) 
                  end 
   end.
 
@@ -398,11 +398,11 @@ Module Lam_cbv_Strategy <: REF_STRATEGY Lam_cbv_PreRefSem.
   as Cᵏ, and we have to do some dirty tricks.  *)
 
   
-  Definition dec_context  {k k': ckind} (ec: elem_context_kinded k k') (v: value k') : interm_dec k :=
-    match ec in eck k k' return value k' -> interm_dec k with
-    | ap_r t =>  (fun v => in_term Cᵏ t (ap_l v))
+  Definition dec_context  {k k': ckind} (ec: elem_context_kinded k k') (v: value k') : elem_dec k :=
+    match ec in eck k k' return value k' -> elem_dec k with
+    | ap_r t =>  (fun v => ed_dec Cᵏ t (ap_l v))
     | ap_l v' => (fun v => match v' with
-                   | vLam x t => in_red  (rApp x t v)
+                   | vLam x t => ed_red  (rApp x t v)
                    end)
     end v.
 
@@ -412,9 +412,9 @@ Module Lam_cbv_Strategy <: REF_STRATEGY Lam_cbv_PreRefSem.
   (* The two pairs (term, context) before and after decomposition represent the same term. *)
   Lemma dec_context_correct :         forall {k k'} (ec : elem_context_kinded k k') v,
       match dec_context ec v with
-      | in_red r        => ec:[v] = r
-      | in_val v'       => ec:[v] = v'
-      | in_term _ t ec' => ec:[v] = ec':[t]
+      | ed_red r        => ec:[v] = r
+      | ed_val v'       => ec:[v] = v'
+      | ed_dec _ t ec' => ec:[v] = ec':[t]
       end.
 
   Proof.
@@ -549,7 +549,7 @@ Module Lam_cbv_Strategy <: REF_STRATEGY Lam_cbv_PreRefSem.
   Hint Unfold so_maximal so_minimal so_predecessor.
 
   Lemma dec_term_term_top : forall {k k'} t t' (ec : elem_context_kinded k k'),
-          dec_term t k = in_term _ t' ec -> so_maximal ec t.
+          dec_term t k = ed_dec _ t' ec -> so_maximal ec t.
   Proof.
     intros k k' t t' ec H ec' H0. 
     destruct t, ec; dependent destruction ec'; destruct k';
@@ -560,7 +560,7 @@ Module Lam_cbv_Strategy <: REF_STRATEGY Lam_cbv_PreRefSem.
   (* There are no further redices, i.e., we have just returned from the minimal element. *) 
   Lemma dec_context_red_bot :  forall {k k'} (v : value k') {r : redex k}
                                                          (ec : elem_context_kinded k k'),
-          dec_context ec v = in_red r -> so_minimal ec ec:[v].
+          dec_context ec v = ed_red r -> so_minimal ec ec:[v].
   Proof.
     intros k k' ec v r H ec'.
     destruct k, ec, ec'; dependent destruction v;
@@ -583,7 +583,7 @@ Module Lam_cbv_Strategy <: REF_STRATEGY Lam_cbv_PreRefSem.
   (* There are no further redices, i.e., we have just returned from the minimal element. *) 
   Lemma dec_context_val_bot : forall {k k'} (v : value k') {v' : value k}
       (ec : elem_context_kinded k k'),
-      dec_context ec v = in_val v' -> so_minimal ec ec:[v].
+      dec_context ec v = ed_val v' -> so_minimal ec ec:[v].
   Proof.
     intros ? ? v v' ec H [? ec'].
     destruct ec; dependent destruction ec'; dependent destruction v;
@@ -597,7 +597,7 @@ Module Lam_cbv_Strategy <: REF_STRATEGY Lam_cbv_PreRefSem.
   Lemma dec_context_term_next :                        forall {k0 k1 k2} (v : value k1) t
                                                        (ec0 : elem_context_kinded k0 k1)
                                                        (ec1 : elem_context_kinded k0 k2),
-      dec_context ec0 v = in_term _ t ec1 -> so_predecessor ec1 ec0 ec0:[v].
+      dec_context ec0 v = ed_dec _ t ec1 -> so_predecessor ec1 ec0 ec0:[v].
   Proof.
     intros ? ? ? v t ec0 ec1 H.
     destruct ec0; dependent destruction ec1; dependent destruction v;

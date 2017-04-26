@@ -1,12 +1,14 @@
-(* Lambda calculus with call by name  reduction strategy *)
+(* Lambda calculus with call by name reduction strategy *)
 
 Require Import Program
                Util
                refocusing_semantics.
 
 (* Here we define the reduction semantics. *)
-(* The module type PRE_REF_SEM is defined in  the file refocusing/refocusing_semantics.v *)
-(* It inherits part of the signature from RED_SEM defined in reduction_semantics/reduction_semantics.v *)
+(* The module type PRE_REF_SEM is defined in the file *)
+(*     refocusing/refocusing_semantics.v *)
+(* It inherits part of the signature from RED_SEM defined in *)
+(*     reduction_semantics/reduction_semantics.v *)
 
 Module Lam_cbn_PreRefSem <: PRE_REF_SEM.
 
@@ -70,7 +72,8 @@ Module Lam_cbn_PreRefSem <: PRE_REF_SEM.
   Definition value := val.
   Hint Unfold value.
 
-  (* The coercion is a simple function that changes occurrences of vLam constructors to Lam. *)
+  (* The coercion is a simple function that changes occurrences of vLam *)
+  (* constructors to Lam. *)
   Fixpoint value_to_term {k} (v : value k) : term :=
       match v with
       | vLam x t => Lam x t
@@ -120,8 +123,12 @@ Module Lam_cbn_PreRefSem <: PRE_REF_SEM.
 
   
   (* Here comes the actual definition of the grammar of contexts. *)
-  (* We have just one nontrivial production:  Cᵏ -> Cᵏ t  *)
+  (* Each constructor of eck represents a (nontrivial) production. *)
+  (* We have just one nontrivial production here:  Cᵏ -> Cᵏ t  *)
   (* which says that a context is another context applied to a term. *)
+  (* Non-context nonterminals (like t) are represented as parameters of *)
+  (* the constructors of the appropriate types (values of these types should *)
+  (* form the languages generated from these nonterminals). *)
   (* There is also a trivial production  Cᵏ -> [] which is omitted here. *)
   (* The first parameter of eck is the nonterminal on the left-hand side; *)
   (* the second parameter is the kind of the hole, i.e., the (unique) nonterminal *)
@@ -190,7 +197,8 @@ Module Lam_cbn_PreRefSem <: PRE_REF_SEM.
       end.
   Notation "c [ t ]" := (plug t c) (at level 0).
 
-  (* Here we define what it means that an elementary context ec is a prefix of a term t. *) 
+  (* Here we define what it means that an elementary context ec is a prefix of *)
+  (* a term t. *) 
   Definition immediate_ec {k1 k2} (ec : elem_context_kinded k1 k2) t :=
       exists t', ec:[t'] = t.
 
@@ -198,6 +206,8 @@ Module Lam_cbn_PreRefSem <: PRE_REF_SEM.
   Definition immediate_subterm t0 t := exists k1 k2 (ec : elem_context_kinded k1 k2),
       t = ec:[t0].
 
+  (* Next technicality: immediate_subterm has to be proved to be well-founded. *)
+  (* Here we use a macro that do this for us. *)
   Lemma wf_immediate_subterm: well_founded immediate_subterm.
   Proof.    REF_LANG_Help.prove_st_wf.
   Qed.
@@ -221,19 +231,21 @@ Module Lam_cbn_PreRefSem <: PRE_REF_SEM.
   where "'[' x ':=' s ']' t" := (subst x s t).
 
   (* Example: to see how a substitution works, uncomment the lines below *)
-  (* Eval compute in [Id 1 := (Lam (Id 2) (Var (Id 2)))] Var (Id 1). (* [x:= \y.y] x *) *)
-  (* Eval compute in [Id 1 := (Lam (Id 2) (Var (Id 2)))] Var (Id 2). (* [x:= \y.y] y *) *)
+  (* Eval compute in [Id 1 := (Lam (Id 2) (Var (Id 2)))] Var (Id 1). (* [x:= \y.y] x *)*)
+  (* Eval compute in [Id 1 := (Lam (Id 2) (Var (Id 2)))] Var (Id 2). (* [x:= \y.y] y *)*)
 
 
-  (* Now we are ready to define the contraction. In our case this is simply beta reduction. *)
+  (* Now we are ready to define the contraction. In our case this is simply beta *)
+  (* reduction. *)
   Definition contract {k} (r : redex k) : option term :=
       match r with
       | rApp x t0 t1 => Some ([x := t1] t0)
       | rStuck x  => None 
       end.
 
-  (* Decomposition of a term is a pair consisting of a reduction context and a potential redex. *)
-  (* Values have no decomposition; we just report that the term is a value. *)
+  (* Decomposition of a term is a pair consisting of a reduction context and *)
+  (* a potential redex. Values have no decomposition; we just report that *)
+  (* the term is a value. *)
   Inductive decomp k : Set :=
   | d_red : forall {k'}, redex k' -> context k k' -> decomp k
   | d_val : value k -> decomp k.
@@ -260,7 +272,8 @@ Module Lam_cbn_PreRefSem <: PRE_REF_SEM.
     := wf_clos_trans_l _ _ wf_immediate_subterm.
 
   (* Here we define the reduction relation. Term t1 reduces to t2 wrt. k-strategy *)
-  (* if t1 decomposes to c[r] and r rewrites (wrt. k-contraction) to t and t2=c[t]. *)
+  (* if t1 decomposes to r : redex k' and c : context k k', and r rewrites (wrt. *)
+  (* k'-contraction) to t and t2 = c[t]. *)
   Definition reduce k t1 t2 := 
     exists {k'} (c : context k k') (r : redex k') t,  dec t1 k (d_red r c) /\
                                                       contract r = Some t /\ t2 = c[t].
@@ -275,12 +288,12 @@ Module Lam_cbn_PreRefSem <: PRE_REF_SEM.
   Class SafeKRegion (k : ckind) (P : term -> Prop) :=
     { 
       preservation :                                                        forall t1 t2,
-        P t1  ->  k |~ t1 → t2  ->  P t2;
+          P t1  ->  k |~ t1 → t2  ->  P t2;
       progress :                                                               forall t1,
           P t1  ->  (exists (v : value k), t1 = v) \/ (exists t2, k |~ t1 → t2)
     }.
 
-  (* Decomposition of a value cannot give a redex, it must give a value. *)
+  (* Decomposition of a value cannot give a potential redex, it must give a value. *)
   Lemma value_trivial1 :
     forall {k1 k2} (ec: elem_context_kinded k1 k2) t,
     forall v : value k1,  ec:[t] = v ->
@@ -298,7 +311,8 @@ Module Lam_cbn_PreRefSem <: PRE_REF_SEM.
     destruct r; destruct v; intro H; inversion H. 
   Qed.
 
-  (* There are no other redices inside a redex; there can be only values. *)
+  (* There are no other potential redices inside a potential redex; *)
+  (* there can be only values. *)
   Lemma redex_trivial1 :   forall {k k'} (r : redex k) (ec : elem_context_kinded k k') t,
        ec:[t] = r -> exists (v : value k'), t = v.
 
@@ -313,43 +327,45 @@ Module Lam_cbn_PreRefSem <: PRE_REF_SEM.
 End Lam_cbn_PreRefSem.
 
 
-(* Although a reduction semantics implicitly contains reduction strategy, our implementation 
-   requires an explicit definition of this strategy. So now we define the reduction strategy.  *)
+(* Although a reduction semantics implicitly contains reduction strategy, our *)
+(* implementation requires an explicit (lower-level) definition of this strategy. *)
+(* So now we define such reduction strategy. *)
 
-(* The module type REF_STRATEGY is defined in the file refocusing/refocusing_semantics.v. *)
+(* The module type REF_STRATEGY is defined in the file *)
+(*     refocusing/refocusing_semantics.v. *)
 Module Lam_cbn_Strategy <: REF_STRATEGY Lam_cbn_PreRefSem.
 
   Import Lam_cbn_PreRefSem.
 
   (* Here we define the two functions: up arrow and down arrow. *)
-  (* We start by defining the type returned by these functions.  *)
-  (* They return that the input term is either a redex (in_red) *)
-  (* or a value (in_val) or that we have to continue searching  *)
-  (* inside a subterm (in_term) *)  
-  Inductive interm_dec k : Set :=
-  | in_red  : redex k -> interm_dec k
-  | in_term : forall k', term -> elem_context_kinded k k' -> interm_dec k
-  | in_val  : value k -> interm_dec k.
-  Arguments in_red {k} _.       Arguments in_val {k} _.
-  Arguments in_term {k} k' _ _.
+  (* We start by defining the type returned by these functions. *)
+  (* They return that the input term is either a redex (ed_red) *)
+  (* or a value (ed_val) or that we have to continue searching  *)
+  (* inside a subterm (ed_dec) *)  
+  Inductive elem_dec k : Set :=
+  | ed_red  : redex k -> elem_dec k
+  | ed_dec : forall k', term -> elem_context_kinded k k' -> elem_dec k
+  | ed_val  : value k -> elem_dec k.
+  Arguments ed_red {k} _.       Arguments ed_val {k} _.
+  Arguments ed_dec {k} k' _ _.
 
 
   
   (* Here is the down-arrow function. *)
   (* It is used to decompose a term.  *)  
-  (* The function says what to do when we try to evaluate a term.  The
-  first rule says that when we evaluate an application, we start by
-  evaluating the left argument (the calling function). The second rule
-  says that when we evaluate a variable, we end up in a stuck term
-  (this should never happen if we start with a closed term). The third
-  rule says that when we evaluate a lambda abstraction, we already
-  have a value.  *)
-  Definition dec_term t k : interm_dec k :=
+  (* The function says what to do when we try to evaluate a term. The *)
+  (* first rule says that when we evaluate an application, we start by *)
+  (* evaluating the left argument (the calling function). The second rule *)
+  (* says that when we evaluate a variable, we end up in a stuck term *)
+  (* (this should never happen if we start with a closed term). The third *)
+  (* rule says that when we evaluate a lambda abstraction, we already *)
+  (* have a value.  *)
+  Definition dec_term t k : elem_dec k :=
     match k with Cᵏ => 
                  match t with
-                 | App t1 t2 => in_term  Cᵏ t1 (ap_r t2)
-                 | Var x     => in_red (rStuck x) 
-                 | Lam x t1  => in_val (vLam x t1)
+                 | App t1 t2 => ed_dec  Cᵏ t1 (ap_r t2)
+                 | Var x     => ed_red (rStuck x) 
+                 | Lam x t1  => ed_val (vLam x t1)
                  end
     end.
 
@@ -360,9 +376,9 @@ Module Lam_cbn_Strategy <: REF_STRATEGY Lam_cbn_PreRefSem.
 
   Lemma dec_term_correct : 
     forall (t : term) k, match dec_term t k with
-                         | in_red r      => t = r
-                         | in_val v      => t = v
-                         | in_term _ t' ec => t = ec:[t']
+                         | ed_red r      => t = r
+                         | ed_val v      => t = v
+                         | ed_dec _ t' ec => t = ec:[t']
                          end.
   Proof.
     destruct k,t ; simpl; auto.
@@ -372,23 +388,25 @@ Module Lam_cbn_Strategy <: REF_STRATEGY Lam_cbn_PreRefSem.
 
 
   (* Here is the up-arrow function. *)
-  (* It is used to decompose a context.  *)
-  (*  This function says what to do when we finish evaluation of a subterm.
-  In call by name it means that we find a lambda abstraction and we are ready 
-  to contract (beta-reduce). *)
-  Definition dec_context  {k k': ckind} (ec: elem_context_kinded k k') (v: value k') : interm_dec k :=
+  (* It is used to decompose a context. *)
+  (* This function says what to do when we finish evaluation of a subterm. *)
+  (* In call by name it means that we find a lambda abstraction and we are ready *)
+  (* to contract (beta-reduce). *)
+  Definition dec_context  {k k': ckind} (ec: elem_context_kinded k k') (v: value k') 
+                                                                          : elem_dec k :=
     match ec with
     | ap_r t   =>  match v with
-                   | vLam x t' => in_red  (rApp x t' t)
+                   | vLam x t' => ed_red  (rApp x t' t)
                    end
     end.
 
-  (* The two pairs (term, context) before and after decomposition represent the same term. *)
+  (* The two pairs (term, context) before and after decomposition represent *)
+  (* the same term. *)
   Lemma dec_context_correct :         forall {k k'} (ec : elem_context_kinded k k') v,
       match dec_context ec v with
-      | in_red r        => ec:[v] = r
-      | in_val v'       => ec:[v] = v'
-      | in_term _ t ec' => ec:[v] = ec':[t]
+      | ed_red r        => ec:[v] = r
+      | ed_val v'       => ec:[v] = v'
+      | ed_dec _ t ec' => ec:[v] = ec':[t]
       end.
 
   Proof.
@@ -398,13 +416,14 @@ Module Lam_cbn_Strategy <: REF_STRATEGY Lam_cbn_PreRefSem.
       try solve [ auto ].
   Qed.
 
+
   (* Here we define an order on elementary contexts. *)
   (* This is necessary to make the generated machine deterministic. *)
 
   (* The construction is quite technical. *)
-  (* In the case of call-by-name strategy  it is not really illustrative because *)
-  (* even if the constructed order is trivial, we still have to prove all the properties *)
-  (* required in the signature of the module. *)
+  (* In the case of call-by-name strategy it is not really illustrative, because *)
+  (* even if the constructed order is trivial, we still have to prove all *)
+  (* the properties required in the signature of the module. *)
 
   Inductive elem_context_in k : Set :=
   | ec_in : forall k' : ckind, elem_context_kinded k k' -> elem_context_in k.
@@ -413,10 +432,10 @@ Module Lam_cbn_Strategy <: REF_STRATEGY Lam_cbn_PreRefSem.
 
 
   (* In the case of call-by-name the order is trivial. *)
-  (* We have only one production in the grammar and there are no overlapping elementary contexts. *)
-  (* There is simply nothing to compare. *)
+  (* We have only one production in the grammar and there are no overlapping *)
+  (* elementary contexts. There is simply nothing to compare. *)
   Definition search_order (k : ckind) (t : term) (ec ec0 : elem_context_in k) : Prop :=
-  False.    
+    False.
 
 
   (* But we still have to go through all of the following. *)
@@ -428,25 +447,16 @@ Module Lam_cbn_Strategy <: REF_STRATEGY Lam_cbn_PreRefSem.
 
   (* The search order is well-founded. *)
   Lemma wf_search : forall k t, well_founded (search_order k t).
-  Proof. 
-    intros k t [? ec];
-    destruct t, ec;
-    let k0 := fresh k  in
-    repeat
-    (let k0 := fresh k  in
-     let ec := fresh ec in
-     let H  := fresh H  in
-     constructor;
-     intros [k0 ec] H;
-     dependent destruction ec;
-     try discriminate;
-     dep_subst;
-     try (inversion H; dep_subst; clear H)).
+  Proof.
+    intros ? ? ?.
+    constructor.
+    intros ? H.
+    inversion H.
   Qed.
 
 
   (* The search order is transitive. *)
-  Lemma search_order_trans :  forall k t ec0 ec1 ec2,
+  Lemma search_order_trans :                                      forall k t ec0 ec1 ec2,
       k,t |~ ec0 << ec1 -> k,t |~ ec1 << ec2 ->
       k,t |~ ec0 << ec2.
 
@@ -456,11 +466,13 @@ Module Lam_cbn_Strategy <: REF_STRATEGY Lam_cbn_PreRefSem.
     solve [ autof ].
   Qed.
 
+
   (* All immediate prefixes are comparable in this order, that is: *)
-  (* If we have two productions in the grammar of the form  k-> ec0[k'] and k-> ec1[k''] *)
-  (* and the two elementary contexts are prefixes of the same term then they are comparable. *)
-  Lemma search_order_comp_if :   forall t k k' k'' (ec0 : elem_context_kinded k k') 
-      (ec1 : elem_context_kinded k k''),
+  (* If we have two productions in the grammar of the form  k-> ec0[k'] and *)
+  (* k-> ec1[k''] and the two elementary contexts are prefixes of the same term, *)
+  (* then they are comparable. *)
+  Lemma search_order_comp_if :         forall t k k' k'' (ec0 : elem_context_kinded k k')
+                                                       (ec1 : elem_context_kinded k k''),
       immediate_ec ec0 t -> immediate_ec ec1 t -> 
           k, t |~ ec0 << ec1  \/  k, t |~ ec1 << ec0  \/  (k' = k'' /\ ec0 ~= ec1).
 
@@ -474,7 +486,7 @@ Module Lam_cbn_Strategy <: REF_STRATEGY Lam_cbn_PreRefSem.
     subst.
     inversion H5; subst.
 
-    try solve
+    solve
     [ compute; eautof 7
     | do 2 right; 
       split; 
@@ -502,7 +514,7 @@ Module Lam_cbn_Strategy <: REF_STRATEGY Lam_cbn_PreRefSem.
   Qed.
 
 
-  (* The down-arrow function always chooses the maximal element. *)
+  (* Order-related definitions *)
 
   Definition so_maximal {k} (ec : elem_context_in k) t :=
        forall (ec' : elem_context_in k), ~ t |~ ec << ec'.
@@ -516,8 +528,11 @@ Module Lam_cbn_Strategy <: REF_STRATEGY Lam_cbn_PreRefSem.
             t |~ ec << ec1  ->  ~ t |~ ec0 << ec.
   Hint Unfold so_maximal so_minimal so_predecessor.
 
+
+  (* The down-arrow function always chooses the maximal element. *)
+
   Lemma dec_term_term_top : forall {k k'} t t' (ec : elem_context_kinded k k'),
-          dec_term t k = in_term _ t' ec -> so_maximal ec t.
+          dec_term t k = ed_dec _ t' ec -> so_maximal ec t.
   Proof.
     intros t k t' ec H ec' H0. 
     destruct k, t, ec'; inversion H;  subst; inversion H0. 
@@ -525,10 +540,11 @@ Module Lam_cbn_Strategy <: REF_STRATEGY Lam_cbn_PreRefSem.
   Qed.
 
   (* If the up-arrow function returns a redex, we have finished traversing the term. *)
-  (* There are no further redices, i.e., we have just returned from the minimal element. *) 
+  (* There are no further redices, i.e., we have just returned from *)
+  (* the minimal element. *) 
   Lemma dec_context_red_bot :  forall {k k'} (v : value k') {r : redex k}
                                                          (ec : elem_context_kinded k k'),
-          dec_context ec v = in_red r -> so_minimal ec ec:[v].
+          dec_context ec v = ed_red r -> so_minimal ec ec:[v].
   Proof.
     intros k ec v r H ec'.
     destruct k, ec, ec'; dependent destruction v;
@@ -542,36 +558,42 @@ Module Lam_cbn_Strategy <: REF_STRATEGY Lam_cbn_PreRefSem.
       autof ].
   Qed.
 
+
   (* The same for the case of a value: *)
   (* If the up-arrow function returns a value, we have finished traversing the term. *)
-  (* There are no further redices, i.e., we have just returned from the minimal element. *) 
+  (* There are no further redices, i.e., we have just returned from *)
+  (* the minimal element. *) 
   Lemma dec_context_val_bot : forall {k k'} (v : value k') {v' : value k}
       (ec : elem_context_kinded k k'),
-      dec_context ec v = in_val v' -> so_minimal ec ec:[v].
+      dec_context ec v = ed_val v' -> so_minimal ec ec:[v].
   Proof.
     intros k ec v v' H ec'.
     destruct k, ec, ec'; dependent destruction v; 
     solve [ autof ].
   Qed.
 
+
   (* If the up-arrow function returns that we should continue searching, *)
   (* it chooses the next (according to the order) element, that is, the predecessor. *)
   Lemma dec_context_term_next :                        forall {k0 k1 k2} (v : value k1) t
                                                        (ec0 : elem_context_kinded k0 k1)
                                                        (ec1 : elem_context_kinded k0 k2),
-      dec_context ec0 v = in_term _ t ec1 -> so_predecessor ec1 ec0 ec0:[v].
+      dec_context ec0 v = ed_dec _ t ec1 -> so_predecessor ec1 ec0 ec0:[v].
+
   Proof.
     intros ? ? ? v t ec0 ec1 H.
     destruct ec0; dependent destruction ec1;  dependent destruction v;
     try discriminate.
   Qed.
 
-  (* If there are two overlapping elementary contexts in the same term, then the greater *)
-  (* of them contains no redices (it contains only values). *) 
+
+  (* If there are two overlapping elementary contexts in the same term, then *)
+  (* the greater of them contains no redices (it contains only values). *) 
   Lemma elem_context_det :          forall {k0 k1 k2} t (ec0 : elem_context_kinded k0 k1)
                                                        (ec1 : elem_context_kinded k0 k2),
 
       t |~ ec0 << ec1 -> exists (v : value k2), t = ec1:[v].
+
   Proof.
     intros ? ? ? t ec0 ec1 H0.
     destruct ec0; dependent destruction ec1;
@@ -583,34 +605,32 @@ Module Lam_cbn_Strategy <: REF_STRATEGY Lam_cbn_PreRefSem.
 End Lam_cbn_Strategy.
 
 
-(* The refocusable semantics is composed from the reduction semantics and the reduction strategy *)
+(* The refocusable semantics is composed from the reduction semantics and *)
+(* the reduction strategy *)
 Module Lam_cbn_RefSem := RedRefSem Lam_cbn_PreRefSem Lam_cbn_Strategy.
 
 
-
-Require Import refocusing_machine.
-
 (* And the abstract machine is generated from this semantics *)
+Require Import refocusing_machine.
 Module Lam_cbn_EAM := RefEvalApplyMachine Lam_cbn_RefSem.
 
-Import Lam_cbn_PreRefSem.
-
-Import Lam_cbn_EAM.
 
 (* An example computation of the generated machine *)
-
+Import Lam_cbn_PreRefSem.
+Import Lam_cbn_EAM.
 Require Import abstract_machine_facts.
 Module Lam_cbn_sim := DetAbstractMachine_Sim Lam_cbn_EAM.
 Import Lam_cbn_sim.
 
-Definition x := Id 1.
-Definition xx:= (Lam x (App (Var x) (Var x))).
-Definition id:= (Lam x (Var x)).
-Definition t:= (App xx id).
+Definition x  := Id 1.
+Definition xx := (Lam x (App (Var x) (Var x))).
+Definition id := (Lam x (Var x)).
+Definition t  := (App xx id).
 
-Fixpoint list_configs c n i := 
+
 (* List of numbered configurations while executing the machine on configuration c
    for n steps and starting the numbering from i  *)
+Fixpoint list_configs c n i := 
  match n with 
  | 0 => nil
  | S n' =>  match c with 
@@ -619,10 +639,12 @@ Fixpoint list_configs c n i :=
             end
  end.
 
+
+(* List of numbered configurations while executing the machine for n steps on term t *)
 Fixpoint list_configurations t n := list_configs (Some (load t)) n 1.
-(* List of numbered configurations while executing the machine for n steps on term t  *)
 
 Eval compute in list_configurations  t 8 .
+
 
 (* and the complete machine *)
 Print Lam_cbn_EAM.

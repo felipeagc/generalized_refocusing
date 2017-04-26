@@ -96,7 +96,9 @@ endif
 #  TO DO: lam_cl_es_no.v\
 #  lam_cl_es_no_tests.v\
 
-VFILES:=lam_no.v\
+VFILES:=cbn_lam.v\
+  cbv_lam.v\
+  lam_no.v\
   lam_no_check.v\
   miniml.v\
   miniml_check.v\
