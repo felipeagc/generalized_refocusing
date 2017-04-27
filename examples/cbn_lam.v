@@ -126,7 +126,7 @@ Module Lam_cbn_PreRefSem <: PRE_REF_SEM.
   (* Each constructor of eck represents a (nontrivial) production. *)
   (* We have just one nontrivial production here:  Cᵏ -> Cᵏ t  *)
   (* which says that a context is another context applied to a term. *)
-  (* Non-context nonterminals (like t) are represented as parameters of *)
+  (* Non-context nonterminals/variables (like t) are represented as parameters of *)
   (* the constructors of the appropriate types (values of these types should *)
   (* form the languages generated from these nonterminals). *)
   (* There is also a trivial production  Cᵏ -> [] which is omitted here. *)
@@ -207,7 +207,7 @@ Module Lam_cbn_PreRefSem <: PRE_REF_SEM.
       t = ec:[t0].
 
   (* Next technicality: immediate_subterm has to be proved to be well-founded. *)
-  (* Here we use a macro that do this for us. *)
+  (* Here we use a macro that does this for us. *)
   Lemma wf_immediate_subterm: well_founded immediate_subterm.
   Proof.    REF_LANG_Help.prove_st_wf.
   Qed.
@@ -329,7 +329,7 @@ End Lam_cbn_PreRefSem.
 
 (* Although a reduction semantics implicitly contains reduction strategy, our *)
 (* implementation requires an explicit (lower-level) definition of this strategy. *)
-(* So now we define such reduction strategy. *)
+(* So now we define such a reduction strategy. *)
 
 (* The module type REF_STRATEGY is defined in the file *)
 (*     refocusing/refocusing_semantics.v. *)
