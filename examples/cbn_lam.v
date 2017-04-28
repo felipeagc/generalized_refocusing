@@ -161,7 +161,7 @@ Module Lam_cbn_PreRefSem <: PRE_REF_SEM.
   Qed.
 
 
-  (* A context is a stack of elementary contexts. *)
+  (* A reduction context is a stack of elementary contexts. *)
   (* The first parameter is the nonterminal generating the whole *)
   (* context, the second is the kind of the hole. *)
   (* We use inside-out representation of contexts, so the topmost symbol on the stack *)
@@ -197,14 +197,17 @@ Module Lam_cbn_PreRefSem <: PRE_REF_SEM.
       end.
   Notation "c [ t ]" := (plug t c) (at level 0).
 
+
   (* Here we define what it means that an elementary context ec is a prefix of *)
   (* a term t. *) 
   Definition immediate_ec {k1 k2} (ec : elem_context_kinded k1 k2) t :=
       exists t', ec:[t'] = t.
 
+
   (* The same for immediate subterms *)
   Definition immediate_subterm t0 t := exists k1 k2 (ec : elem_context_kinded k1 k2),
       t = ec:[t0].
+
 
   (* Next technicality: immediate_subterm has to be proved to be well-founded. *)
   (* Here we use a macro that does this for us. *)
@@ -267,9 +270,11 @@ Module Lam_cbn_PreRefSem <: PRE_REF_SEM.
   Definition subterm_order := clos_trans_1n term immediate_subterm.
   Notation "t1 <| t2" := (subterm_order t1 t2) (at level 70, no associativity).
 
+
   (* Subterm order is a well founded relation *)
   Definition wf_subterm_order : well_founded subterm_order
     := wf_clos_trans_l _ _ wf_immediate_subterm.
+
 
   (* Here we define the reduction relation. Term t1 reduces to t2 wrt. k-strategy *)
   (* if t1 decomposes to r : redex k' and c : context k k', and r rewrites (wrt. *)
@@ -284,6 +289,7 @@ Module Lam_cbn_PreRefSem <: PRE_REF_SEM.
   Instance rws : REWRITING_SYSTEM term := 
     { transition := reduce init_ckind }.
 
+
   (* Again some technicalities required by the module *)
   Class SafeKRegion (k : ckind) (P : term -> Prop) :=
     { 
@@ -292,6 +298,7 @@ Module Lam_cbn_PreRefSem <: PRE_REF_SEM.
       progress :                                                               forall t1,
           P t1  ->  (exists (v : value k), t1 = v) \/ (exists t2, k |~ t1 → t2)
     }.
+
 
   (* Decomposition of a value cannot give a potential redex, it must give a value. *)
   Lemma value_trivial1 :
