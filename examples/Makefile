@@ -97,6 +97,7 @@ endif
 #  lam_cl_es_no_tests.v\
 
 VFILES:=cbn_lam.v\
+  cbn_strict.v\
   cbv_lam.v\
   lam_no.v\
   lam_no_check.v\
