@@ -353,26 +353,24 @@ Module Lam_cbn_strict_PreRefSem <: PRE_REF_SEM.
 
 
 
-(*  The two lemmas below are correctly proved.  *) 
-(* At the moment they are not used, but we expect that thay should be
-   useful in simplifying the proof of value_trivial1 below. *)
-(*   Lemma valA_is_valE :  *)
-(*       forall v1 : valA, exists v2 : value Eᵏ, valA_to_term v1 = value_to_term v2. *)
+(* The two lemmas below are used in the proof of value_trivial1 below. *)
+  Lemma valA_is_valE :
+      forall v1 : valA, exists v2 : value Eᵏ, valA_to_term v1 = value_to_term v2.
 
-(*   Proof with auto. *)
-(*     destruct v1; intros. *)
-(*     - exists (vVar v)... *)
-(*     - exists (vEApp v1 t)... *)
-(*   Qed. *)
+  Proof with auto.
+    destruct v1; intros.
+    - exists (vVar v)...
+    - exists (vEApp v1 t)...
+  Qed.
 
-(*   Lemma valB_is_valF :  *)
-(*       forall v1 : valB, exists v2 : value Fᵏ, valB_to_term v1 = value_to_term v2. *)
+  Lemma valB_is_valF :
+      forall v1 : valB, exists v2 : value Fᵏ, valB_to_term v1 = value_to_term v2.
 
-(*   Proof with auto. *)
-(*     destruct v1; intros. *)
-(*     - exists (vVar v)... *)
-(*     - exists (vFApp v1 v)... *)
-(*   Qed. *)
+  Proof with auto.
+    destruct v1; intros.
+    - exists (vVar v)...
+    - exists (vFApp v1 v)...
+  Qed.
 
 
 
@@ -381,27 +379,14 @@ Module Lam_cbn_strict_PreRefSem <: PRE_REF_SEM.
     forall {k1 k2} (ec: elem_context_kinded k1 k2) t,
     forall v : value k1,  ec:[t] = v ->
                              exists (v' : value k2), t = v'.
-  Proof with auto.
+  Proof with auto using valA_is_valE, valB_is_valF. 
+
     intros ? ? ec t v H.
-    (* destruct ec;   dependent destruction v; inversion H.  *)
-destruct ec; dependent destruction v;  inversion H;  
-
-dependent destruction v.
-exists (vVar v)...  
-exists (vEApp v t1)... 
-exists (vVar v)...  
-exists (vFApp v v0)... 
-
-dependent destruction v2.
-exists (vLam v2 t0)...  
-exists (vVar v2)...  
-exists (vFApp v3 v2)... 
-
-dependent destruction v2.
-exists (vLam v2 t0)...  
-exists (vVar v2)...  
-exists (vFApp v2 v4)... 
-Qed.
+    destruct ec; dependent destruction v;  inversion H;
+    dependent destruction v...
+    dependent destruction v2; eexists...
+    eexists...
+  Qed.
 
 
   Lemma valA_is_not_Lam: forall (v : valA) x t, (v:term) <> Lam x t.
@@ -489,16 +474,16 @@ Module Lam_cbn_strict_Strategy <: REF_STRATEGY Lam_cbn_strict_PreRefSem.
   Definition dec_term t k : elem_dec k :=
     match k with
     |  Eᵏ =>     match t with
-                 | App t1 t2 => ed_dec  Eᵏ t1 (apE_r t2)
-                 | Var x     => ed_val (vVar x) 
-                 | Lam x t1  => ed_val (vLam x t1)
-                 | Bang t'  => ed_dec Fᵏ t' bang
+                 | App t1 t2 => ed_dec  Eᵏ t1 (apE_r t2)   (*  [t1 t2]_E ⇓ [t1]_E t2 *)
+                 | Var x     => ed_val (vVar x)                         (* [x]_E ⇓ V *)
+                 | Lam x t1  => ed_val (vLam x t1)                   (* [\x.t]_E ⇓ V *)
+                 | Bang t'  => ed_dec Fᵏ t' bang                  (*[!t]_E ⇓ ! [t]_F *)
                  end
     |  Fᵏ =>     match t with
-                 | App t1 t2 => ed_dec  Fᵏ t1 (apF_r t2)
-                 | Var x     => ed_val (vVar x) 
-                 | Lam x t1  => ed_val (vLam x t1)
-                 | Bang t'  => ed_red (rBangF t')
+                 | App t1 t2 => ed_dec  Fᵏ t1 (apF_r t2)   (*  [t1 t2]_F ⇓ [t1]_F t2 *)
+                 | Var x     => ed_val (vVar x)                         (* [x]_F ⇓ V *)
+                 | Lam x t1  => ed_val (vLam x t1)                   (* [\x.t]_F ⇓ V *)
+                 | Bang t'  => ed_red (rBangF t')                       (*[!t]_F ⇓ R *)
                  end
     end.
 
@@ -548,7 +533,7 @@ Module Lam_cbn_strict_Strategy <: REF_STRATEGY Lam_cbn_strict_PreRefSem.
   evaluation of an argument of bang: this is possible only in
   Fᵏ-strategy and we reduce. The third rule applies when we finish the
   evaluation of the calling function in Fᵏ-strategy: we start the
-  evaluation of the argument (by decomposing it).  The second rule
+  evaluation of the argument (by decomposing it).  The last rule
   says what to do when we finish evaluation of the argument of
   application in Fᵏ-strategy: if the first argument is a lambda
   abstraction, we reduce; otherwise we report a value. *)
@@ -558,18 +543,18 @@ Module Lam_cbn_strict_Strategy <: REF_STRATEGY Lam_cbn_strict_PreRefSem.
   Definition dec_context  {k k': ckind} (ec: elem_context_kinded k k') (v: value k') : elem_dec k :=
     match ec in eck k k' return value k' -> elem_dec k with
     | apE_r t =>  (fun v => match (v:value Eᵏ) with
-                            | vLam x t'   => ed_red (rEApp x t' t)
-                            | vVar x      => ed_val (vEApp (vAVar x) t)
-                            | vEApp v' t' => ed_val (vEApp (vAApp v' t') t)
-                            | vFApp v' t  => ed_val (vVar (Id 1)) (* impossible case *)
+                            | vLam x t'   => ed_red (rEApp x t' t)        (* [[\x.t1]_E t2]_E ⇑ R *)
+                            | vVar x      => ed_val (vEApp (vAVar x) t)        (* [[a]_E t]_E ⇑ V *)
+                            | vEApp v' t' => ed_val (vEApp (vAApp v' t') t)    (* [[a]_E t]_E ⇑ V *)
+                            | vFApp v' t  => ed_val (vVar (Id 1))              (* impossible case *)
                    end)
-    | bang    =>  (fun v => ed_red  (rBangE v))
-    | apF_r t =>  (fun v => ed_dec Fᵏ t (ap_l v))
+    | bang    =>  (fun v => ed_red  (rBangE v))                                (* [! [v]_F]_E ⇑ R *)
+    | apF_r t =>  (fun v => ed_dec Fᵏ t (ap_l v))                       (* [ [v]_F t]_F ⇑ v [t]_F *)
     | ap_l v' => (fun v => match (v': value Fᵏ) with
-                           | vLam x t => ed_red  (rFApp x t v)
-                           | vVar x     => ed_val (vFApp (vBVar x) v)
-                           | vEApp v' t => ed_val (vVar (Id 1)) (* impossible case *)
-                           | vFApp v' t => ed_val (vFApp (vBApp v' t) v)
+                           | vLam x t => ed_red  (rFApp x t v)             (* [\x.t [v]_F ]_F ⇑ R *)
+                           | vVar x     => ed_val (vFApp (vBVar x) v)          (* [b [v]_F]_F ⇑ V *)
+                           | vEApp v' t => ed_val (vVar (Id 1))                (* impossible case *)
+                           | vFApp v' t => ed_val (vFApp (vBApp v' t) v)       (* [b [v]_F]_F ⇑ V *)
                    end)
     end v.
 
