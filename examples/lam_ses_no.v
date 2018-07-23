@@ -138,7 +138,7 @@ Module Lam_SES_NO_PreRefSem <: PRE_REF_SEM.
   | ap_r   : forall k : EF_kind, term  -> eck k Fᵏ     (* E -> F e ; F -> F e *) 
   | ap_l   : forall k : EF_kind, valCa -> eck k Eᵏ     (* E -> a E ; F -> a E *) 
   | esub_c : forall k : ckind,   esub  -> eck k Dᵏ.    (* E -> esub D ; F -> esub D; D -> esub D *)
-  Definition elem_context_kinded := eck.
+  Definition elem_context_kinded : ckind -> ckind -> Type := eck.
   Hint Unfold elem_context_kinded.
 
   (* The function for plugging a term into an elementary context *)
@@ -157,7 +157,7 @@ Module Lam_SES_NO_PreRefSem <: PRE_REF_SEM.
   (* context, the second is the kind of the hole. *)
   (* We use inside-out representation of contexts, so the topmost symbol on the stack *)
   (* is the elementary context that is closest to the hole. *)
-  Inductive context (k1 : ckind) : ckind -> Set :=
+  Inductive context (k1 : ckind) : ckind -> Type :=
   | empty : context k1 k1
   | ccons :                                                                forall {k2 k3}
             (ec : elem_context_kinded k2 k3), context k1 k2 -> context k1 k3.
@@ -419,7 +419,7 @@ Module Lam_SES_NO_Strategy <: REF_STRATEGY Lam_SES_NO_PreRefSem.
   (* They return that the input term is either a redex (ed_red) *)
   (* or a value (ed_val) or that we have to continue searching  *)
   (* inside a subterm (ed_dec) *)  
-  Inductive elem_dec k : Set :=
+  Inductive elem_dec k : Type :=
   | ed_red  : redex k -> elem_dec k
   | ed_dec : forall k', term -> elem_context_kinded k k' -> elem_dec k
   | ed_val  : value k -> elem_dec k.
@@ -566,7 +566,7 @@ Module Lam_SES_NO_Strategy <: REF_STRATEGY Lam_SES_NO_PreRefSem.
   Qed.
 
 
-  Inductive elem_context_in k : Set :=
+  Inductive elem_context_in k : Type :=
   | ec_in : forall k' : ckind, elem_context_kinded k k' -> elem_context_in k.
   Arguments ec_in {k} _ _.
   Coercion ec_kinded_to_in {k1 k2} (ec : elem_context_kinded k1 k2) := ec_in k2 ec.
@@ -821,7 +821,7 @@ Module Lam_SES_NO_AlterContexts.
 
 (* Here is the definition of their contexts *)
   
-  Inductive context_IO : ckind_IO -> Set :=
+  Inductive context_IO : ckind_IO -> Type :=
   | hole_io   : context_IO Aio
   | ap_l_io   : context_IO Cio -> valCa -> context_IO Aio
   | lam_c_io  : context_IO Aio -> context_IO Aio

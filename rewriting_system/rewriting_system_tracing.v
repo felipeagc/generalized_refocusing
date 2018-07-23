@@ -17,7 +17,9 @@ Class RW_TRACING                                      {configuration_er configur
     semantics_surj : forall cd, exists cr, semantics cr = cd;
 
     correct :                                                             forall cr1 cr2,
-        `(Tracer) cr1 → cr2  ->  semantics cr1 = semantics cr2  \/
+    
+        `(Tracer) 
+        cr1 → cr2  ->  semantics cr1 = semantics cr2  \/
                                    `(Traced) semantics cr1 → semantics cr2;
 
     complete :                                                        forall cd1 cd2 cr1,

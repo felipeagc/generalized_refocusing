@@ -170,7 +170,7 @@ Module REF_LANG_Help.
           constructor; auto
       ).
 
-  Context `{term : Set}.
+  Context `{term : Type}.
   Context `{immediate_subterm : term -> term -> Prop}.
   Context `{wf_immediate_subterm : well_founded immediate_subterm}.
 

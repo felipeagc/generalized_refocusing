@@ -120,7 +120,7 @@ Module Lam_KES_CBN_PreRefSem <: PRE_REF_SEM.
   Hint Unfold ckind.
 
 
-  Definition elem_context_kinded (_ _ : ckind) := closure.
+  Definition elem_context_kinded (_ _ : ckind) : Type := closure.
   Hint Unfold elem_context_kinded.
 
   Definition elem_plug {k1 k2} (t : term) (ec : elem_context_kinded k1 k2) : term := 
@@ -128,7 +128,7 @@ Module Lam_KES_CBN_PreRefSem <: PRE_REF_SEM.
   Notation "ec :[ t ]" := (elem_plug t ec) (at level 0).
 
 
-  Inductive context (k1 : ckind) : ckind -> Set :=
+  Inductive context (k1 : ckind) : ckind -> Type :=
   | empty : context k1 k1
   | ccons :                                                                forall {k2 k3}
             (ec : elem_context_kinded k2 k3), context k1 k2 -> context k1 k3.
@@ -160,7 +160,7 @@ Module Lam_KES_CBN_PreRefSem <: PRE_REF_SEM.
       exists t', ec:[t'] = t.
 
 
-  Inductive value' : Set := 
+  Inductive value' : Type := 
   | vLam_cl : pnat -> term0 -> env -> value'.
   Definition value (_: ckind) := value'.
 
@@ -169,7 +169,7 @@ Module Lam_KES_CBN_PreRefSem <: PRE_REF_SEM.
   Coercion  value_to_term : value >-> term.
 
 
-  Inductive redex' : Set :=
+  Inductive redex' : Type :=
   | rBeta   : pnat -> term0 -> thunk -> list thunk -> closure -> redex'
   | rSubApp : term0 -> term0 -> env -> redex'
   | rSubVar : nat -> nat -> env -> redex'.
@@ -199,7 +199,7 @@ Module Lam_KES_CBN_PreRefSem <: PRE_REF_SEM.
       end.
 
 
-  Inductive decomp k : Set :=
+  Inductive decomp k : Type :=
   | d_red : forall {k'}, redex k' -> context k k' -> decomp k
   | d_val : value k -> decomp k.
   Arguments d_val {k} _. Arguments d_red {k} {k'} _ _.
@@ -549,7 +549,7 @@ Module Lam_KES_CBN_Strategy <: REF_STRATEGY Lam_KES_CBN_PreRefSem.
   Import Lam_KES_CBN_PreRefSem.
 
 
-  Inductive elem_dec k : Set :=
+  Inductive elem_dec k : Type :=
   | ed_red  : redex k -> elem_dec k
   | ed_dec : forall k', term -> elem_context_kinded k k' -> elem_dec k
   | ed_val  : value k -> elem_dec k.
@@ -607,7 +607,7 @@ Module Lam_KES_CBN_Strategy <: REF_STRATEGY Lam_KES_CBN_PreRefSem.
   Qed.
 
 
-  Inductive elem_context_in k : Set :=
+  Inductive elem_context_in k : Type :=
   | ec_in : forall k' : ckind, elem_context_kinded k k' -> elem_context_in k.
   Arguments ec_in {k} _ _.
   Coercion ec_kinded_to_in {k1 k2} (ec : elem_context_kinded k1 k2) := ec_in k2 ec.

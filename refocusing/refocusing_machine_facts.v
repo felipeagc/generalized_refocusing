@@ -7,7 +7,7 @@ Require Import Program
                refocusing_semantics
                refocusing_machine
                reduction_languages_facts
-               reduction_semantics_facts 
+               reduction_semantics_facts
                refocusing_semantics_facts.
         Import rewriting_system.Paths.
 
@@ -43,7 +43,8 @@ Module RefEvalApplyMachine_Facts (R   : RED_REF_SEM)
 
 
   Theorem am_correct :                                                    forall st1 st2,
-      `(eam) st1 → st2 -> decompile st1 = decompile st2 \/ 
+      `(eam) 
+      st1 → st2 -> decompile st1 = decompile st2 \/ 
                               `(rs) decompile st1 → decompile st2.
 
   Proof with eauto.
@@ -78,17 +79,17 @@ Module RefEvalApplyMachine_Facts (R   : RED_REF_SEM)
   Qed.
 
 
-
-  Lemma refocus_in_sim :             forall t {k1 k2} (d : decomp k1) (c : context k1 k2)
-                                                                   (c0 : context ick k1),
+  Lemma refocus_in_sim :         
+      forall t {k1 k2} (d : decomp k1) (c : context k1 k2)
+                                  (c0 : context ick k1),
       refocus_in t c d ->
           exists n (sts : Vector.t configuration n), (*such that: *)
+
 
           (**)Forall (fun st => decompile st = (c~+c0)[t]) sts /\
 
           (**)match d with 
               | d_val v => last (c_eval t (c ~+ c0) :: sts) = c_apply c0 v 
-
               | @d_red _ k r c' => 
                            last (c_eval t (c ~+ c0) :: sts) = c_eval r (c'~+c0) /\
                            dec_term r k = ed_red r  \/

@@ -12,7 +12,7 @@ Module Type DET_RED_MINI_SEM.
   Parameter contract : forall {k}, redex k -> option term.
 
 
-  Inductive decomp k : Set :=
+  Inductive decomp k : Type :=
   | d_red : forall {k'}, redex k' -> context k k' -> decomp k
   | d_val : value k -> decomp k.
   Arguments d_val {k} _. Arguments d_red {k} {k'} _ _.
@@ -31,7 +31,7 @@ Module Type DET_RED_MINI_SEM.
       exists {k'} (c : context k k') (r : redex k') t,  dec t1 k (d_red r c) /\
           contract r = Some t /\ t2 = c[t].
 
-  Notation "k |~ t1 → t2"  := (reduce k t1 t2) 
+  Notation "k |~ t1 \u2192 t2"  := (reduce k t1 t2) 
                                          (no associativity, at level 70, t1 at level 69).
 
 
@@ -50,7 +50,7 @@ Module DET_RED_SEM_Facts (R : DET_RED_MINI_SEM).
 
 
   Lemma reduce_is_det :                                                forall t1 t2 t3 k,
-      k |~ t1 → t2  ->  k |~ t1 → t3  ->  t2 = t3.
+      k |~ t1 \u2192 t2  ->  k |~ t1 \u2192 t3  ->  t2 = t3.
 
   Proof.
     intros t1 t2 t3 k H H0.
@@ -64,7 +64,7 @@ Module DET_RED_SEM_Facts (R : DET_RED_MINI_SEM).
 
 
   Lemma reduce_red :                 forall {k1 k2} (c : context k1 k2) (r : redex k2) t,
-      k1 |~ c[r] → t  ->  exists t', contract r = Some t' /\ t = c[t'].
+      k1 |~ c[r] \u2192 t  ->  exists t', contract r = Some t' /\ t = c[t'].
 
   Proof.
     intros k1 k2 c r t H.

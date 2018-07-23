@@ -8,9 +8,9 @@ Require Export rewriting_system.
 Module Type ABSTRACT_MACHINE.
 
   Parameters 
-  (term          : Set)
-  (configuration : Set)
-  (value         : Set)
+  (term          : Type)
+  (configuration : Type)
+  (value         : Type)
 
   (load          : term -> configuration)
   (final         : configuration -> option value)

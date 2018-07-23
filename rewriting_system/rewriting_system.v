@@ -2,7 +2,7 @@ Require Import Relations.
 
 
 
-Class REWRITING_SYSTEM (configuration : Set) :=
+Class REWRITING_SYSTEM (configuration : Type) :=
 {
     transition : configuration -> configuration -> Prop
 }.
@@ -23,7 +23,7 @@ Notation "c1 →* c2" := (clos_refl_trans_1n _ transition c1 c2)
 
 
 
-Class LABELED_REWRITING_SYSTEM (label configuration : Set) :=
+Class LABELED_REWRITING_SYSTEM (label configuration : Type) :=
 {
     ltransition : label -> configuration -> configuration -> Prop
 }.
@@ -63,7 +63,7 @@ Module Paths.
 
 Section RWS.
 
-  Context {conf : Set}.
+  Context {conf : Type}.
   Context `(REWRITING_SYSTEM conf).
 
 
@@ -100,7 +100,7 @@ End RWS.
 
 Section LRWS.
 
-  Context {label : Set} {conf : Set}.
+  Context {label : Set} {conf : Type}.
   Context `(LABELED_REWRITING_SYSTEM label conf).
 
   Definition lpath_in                                                                 {n}

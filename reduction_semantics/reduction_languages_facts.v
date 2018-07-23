@@ -8,12 +8,12 @@ Require Import Eqdep.
 Module Type RED_MINI_LANG.
 
  Parameters 
-  (term         : Set)
-  (ckind        : Set)
-  (elem_context_kinded : ckind -> ckind -> Set)
+  (term         : Type)
+  (ckind        : Type)
+  (elem_context_kinded : ckind -> ckind -> Type)
   (elem_plug     : forall {k1 k2}, term -> elem_context_kinded k1 k2 -> term)
-  (redex         : ckind -> Set)
-  (value         : ckind -> Set)
+  (redex         : ckind -> Type)
+  (value         : ckind -> Type)
   (value_to_term : forall {k}, value k -> term)
   (redex_to_term : forall {k}, redex k -> term).
 
@@ -22,7 +22,7 @@ Module Type RED_MINI_LANG.
   Coercion  redex_to_term : redex >-> term.
 
 
-  Inductive context (k1 : ckind) : ckind -> Set :=
+  Inductive context (k1 : ckind) : ckind -> Type :=
   | empty : context k1 k1
   | ccons :                                                                forall {k2 k3}
             (ec : elem_context_kinded k2 k3), context k1 k2 -> context k1 k3.
@@ -241,7 +241,7 @@ Module Type RED_MINI_LANG2.
 
   Include RED_MINI_LANG.
 
-  Inductive decomp k : Set :=
+  Inductive decomp k : Type :=
   | d_red : forall {k'}, redex k' -> context k k' -> decomp k
   | d_val : value k -> decomp k.
   Arguments d_val {k} _. Arguments d_red {k} {k'} _ _.
@@ -301,7 +301,7 @@ Module Type RED_MINI_LANG_WD <: RED_MINI_LANG.
 
   Include RED_MINI_LANG.
 
-  Inductive decomp k : Set :=
+  Inductive decomp k : Type :=
   | d_red : forall {k'}, redex k' -> context k k' -> decomp k
   | d_val : value k -> decomp k.
   Arguments d_val {k} _. Arguments d_red {k} {k'} _ _.

@@ -67,7 +67,7 @@ Module Lam_NO_PreRefSem <: PRE_REF_SEM.
   | k_lam_c : var -> eck Eᵏ Eᵏ
   | k_ap_r  : forall {k}, term -> eck k Fᵏ 
   | k_ap_l  : forall {k}, valA -> eck k Eᵏ .
-  Definition elem_context_kinded := eck.
+  Definition elem_context_kinded : ckind -> ckind -> Type := eck.
 
   (*Inductive ec :=
   | lam_c : var -> ec
@@ -89,7 +89,7 @@ Module Lam_NO_PreRefSem <: PRE_REF_SEM.
 
   Hint Unfold init_ckind.
 
-  Inductive context (k1 : ckind) : ckind -> Set :=
+  Inductive context (k1 : ckind) : ckind -> Type :=
   | empty : context k1 k1
   | ccons :                                                                forall {k2 k3}
             (ec : elem_context_kinded k2 k3), context k1 k2 -> context k1 k3.
@@ -269,7 +269,7 @@ Module Lam_NO_PreRefSem <: PRE_REF_SEM.
   Qed.
 
 
-  Inductive decomp k : Set :=
+  Inductive decomp k : Type :=
   | d_red : forall {k'}, redex k' -> context k k' -> decomp k
   | d_val : value k -> decomp k.
   Arguments d_val {k} _. Arguments d_red {k} {k'} _ _.
@@ -331,7 +331,7 @@ Module Lam_NO_Strategy <: REF_STRATEGY Lam_NO_PreRefSem.
   Import Lam_NO_PreRefSem.
 
 
-  Inductive elem_dec k : Set :=
+  Inductive elem_dec k : Type :=
   | ed_red  : redex k -> elem_dec k
   | ed_dec : forall k', term -> elem_context_kinded k k' -> elem_dec k
   | ed_val  : value k -> elem_dec k.
@@ -401,7 +401,7 @@ Module Lam_NO_Strategy <: REF_STRATEGY Lam_NO_PreRefSem.
   Qed.
 
 
-  Inductive elem_context_in k : Set :=
+  Inductive elem_context_in k : Type :=
   | ec_in : forall k' : ckind, elem_context_kinded k k' -> elem_context_in k.
   Arguments ec_in {k} _ _.
   Coercion ec_kinded_to_in {k1 k2} (ec : elem_context_kinded k1 k2) := ec_in k2 ec.

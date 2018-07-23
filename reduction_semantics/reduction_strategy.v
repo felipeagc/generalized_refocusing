@@ -2,12 +2,12 @@
 Module Type RED_STRATEGY_LANG.
 
  Parameters 
-  (term         : Set)
-  (ckind        : Set)
-  (elem_context_kinded : ckind -> ckind -> Set)
+  (term         : Type)
+  (ckind        : Type)
+  (elem_context_kinded : ckind -> ckind -> Type)
   (elem_plug     : forall {k0 k1}, term -> elem_context_kinded k0 k1 -> term)
-  (redex         : ckind -> Set)
-  (value         : ckind -> Set)
+  (redex         : ckind -> Type)
+  (value         : ckind -> Type)
   (init_ckind : ckind)
   (value_to_term : forall {k}, value k -> term)
   (redex_to_term : forall {k}, redex k -> term).
@@ -17,7 +17,7 @@ Module Type RED_STRATEGY_LANG.
   Coercion  redex_to_term : redex >-> term.
 
 
-  Inductive context (k1 : ckind) : ckind -> Set :=
+  Inductive context (k1 : ckind) : ckind -> Type :=
   | empty : context k1 k1
   | ccons :                                                                forall {k2 k3}
             (ec : elem_context_kinded k2 k3), context k1 k2 -> context k1 k3.
@@ -44,7 +44,7 @@ Module Type RED_STRATEGY_LANG.
   Definition immediate_ec {k0 k1} (ec : elem_context_kinded k0 k1) t :=
       exists t', ec:[t'] = t.
 
-  Inductive decomp k : Set :=
+  Inductive decomp k : Type :=
   | d_red : forall {k'}, redex k' -> context k k' -> decomp k
   | d_val : value k -> decomp k.
   Arguments d_val {k} _. Arguments d_red {k} {k'} _ _.
@@ -84,7 +84,7 @@ Module Type RED_STRATEGY_STEP (R : RED_STRATEGY_LANG).
   Import R.
 
 
-  Inductive elem_dec k : Set :=
+  Inductive elem_dec k : Type :=
   | ed_red : redex k -> elem_dec k
   | ed_dec : forall k', term -> elem_context_kinded k k' -> elem_dec k
   | ed_val : value k -> elem_dec k.
@@ -130,7 +130,7 @@ Module Type RED_STRATEGY (R : RED_STRATEGY_LANG).
   Include RED_STRATEGY_STEP R.
 
 
-  Inductive elem_context_in k : Set := 
+  Inductive elem_context_in k : Type := 
   | ec_in : forall k' : ckind, elem_context_kinded k k' -> elem_context_in k.
   Arguments ec_in {k} _ _.
   Coercion ec_kinded_to_in {k1 k2} (ec : elem_context_kinded k1 k2) := ec_in k2 ec.

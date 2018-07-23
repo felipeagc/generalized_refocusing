@@ -66,14 +66,14 @@ Module MiniML_PreRefSem <: PRE_REF_SEM.
   | snd_c  : ec
   | pair_l : value' -> ec
   | pair_r : term -> ec.
-  Definition elem_context_kinded (_ _ : ckind) : Set := ec.
+  Definition elem_context_kinded (_ _ : ckind) : Type := ec.
 
 
   Definition init_ckind : ckind := ().
   Hint Unfold init_ckind.
 
 
-  Inductive context (k1 : ckind) : ckind -> Set :=
+  Inductive context (k1 : ckind) : ckind -> Type :=
   | empty : context k1 k1
   | ccons :                                                                forall {k2 k3}
             (ec : elem_context_kinded k2 k3), context k1 k2 -> context k1 k3.
@@ -242,7 +242,7 @@ Module MiniML_PreRefSem <: PRE_REF_SEM.
 
 
 
-  Inductive decomp k : Set :=
+  Inductive decomp k : Type :=
   | d_red : forall {k'}, redex k' -> context k k' -> decomp k
   | d_val : value k -> decomp k.
   Arguments d_val {k} _. Arguments d_red {k} {k'} _ _.
@@ -289,7 +289,7 @@ Module MiniML_Strategy <: REF_STRATEGY MiniML_PreRefSem.
   Import MiniML_PreRefSem.
 
 
-  Inductive elem_dec k : Set :=
+  Inductive elem_dec k : Type :=
   | ed_red  : redex k -> elem_dec k
   | ed_dec : forall k', term -> elem_context_kinded k k' -> elem_dec k
   | ed_val  : value k -> elem_dec k.
@@ -355,7 +355,7 @@ Module MiniML_Strategy <: REF_STRATEGY MiniML_PreRefSem.
   Qed.
 
 
-  Inductive elem_context_in k : Set :=
+  Inductive elem_context_in k : Type :=
   | ec_in : forall k' : ckind, elem_context_kinded k k' -> elem_context_in k.
   Arguments ec_in {k} _ _.
   Coercion ec_kinded_to_in {k1 k2} (ec : elem_context_kinded k1 k2) := ec_in k2 ec.

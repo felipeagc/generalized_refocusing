@@ -187,13 +187,13 @@ Module Lam_cbn_strict_PreRefSem <: PRE_REF_SEM.
   (* The first parameter of eck is the nonterminal on the left-hand side; *)
   (* the second parameter is the kind of the hole, i.e., the (unique) nonterminal *)
   (* occurring on the right-hand side of a production. *) 
-  Inductive eck : ckind -> ckind -> Set := 
+  Inductive eck : ckind -> ckind -> Type := 
   | apE_r  : term -> eck Eᵏ Eᵏ       (* Eᵏ -> Eᵏ t *)
   | bang   : eck Eᵏ Fᵏ               (* Eᵏ -> ! Fᵏ *)
   | apF_r  : term -> eck Fᵏ Fᵏ       (* Fᵏ -> Fᵏ t *)
   | ap_l   : value Fᵏ -> eck Fᵏ Fᵏ.  (* Fᵏ -> v Fᵏ *) 
 
-  Definition elem_context_kinded := eck.
+  Definition elem_context_kinded : ckind -> ckind -> Type := eck.
   Hint Unfold elem_context_kinded.
 
   (* The starting symbol in the grammar *)
@@ -226,7 +226,7 @@ Module Lam_cbn_strict_PreRefSem <: PRE_REF_SEM.
   (* context, the second is the kind of the hole. *)
   (* We use the inside-out representation of contexts, so the topmost symbol on the stack *)
   (* is the elementary context that is closest to the hole. *)
-  Inductive context (k1 : ckind) : ckind -> Set :=
+  Inductive context (k1 : ckind) : ckind -> Type :=
   | empty : context k1 k1
   | ccons :                                                                forall {k2 k3}
             (ec : elem_context_kinded k2 k3), context k1 k2 -> context k1 k3.
@@ -305,7 +305,7 @@ Module Lam_cbn_strict_PreRefSem <: PRE_REF_SEM.
 
   (* Decomposition of a term is a pair consisting of a reduction context and a potential redex. *)
   (* Values have no decomposition; we just report that the term is a value. *)
-  Inductive decomp k : Set :=
+  Inductive decomp k : Type :=
   | d_red : forall {k'}, redex k' -> context k k' -> decomp k
   | d_val : value k -> decomp k.
   Arguments d_val {k} _. Arguments d_red {k} {k'} _ _.
@@ -447,7 +447,7 @@ Module Lam_cbn_strict_Strategy <: REF_STRATEGY Lam_cbn_strict_PreRefSem.
   (* They return that the input term is either a redex (ed_red) *)
   (* or a value (ed_val) or that we have to continue searching  *)
   (* inside a subterm (ed_dec) *)  
-  Inductive elem_dec k : Set :=
+  Inductive elem_dec k : Type :=
   | ed_red  : redex k -> elem_dec k
   | ed_dec : forall k', term -> elem_context_kinded k k' -> elem_dec k
   | ed_val  : value k -> elem_dec k.
@@ -582,7 +582,7 @@ Module Lam_cbn_strict_Strategy <: REF_STRATEGY Lam_cbn_strict_PreRefSem.
   (* This is necessary to make the generated machine deterministic. *)
 
   (* The set of all elementary contexts generated from  nonterminal k *)
-  Inductive elem_context_in k : Set :=
+  Inductive elem_context_in k : Type :=
   | ec_in : forall k' : ckind, elem_context_kinded k k' -> elem_context_in k.
   Arguments ec_in {k} _ _.
   Coercion ec_kinded_to_in {k1 k2} (ec : elem_context_kinded k1 k2) := ec_in k2 ec.

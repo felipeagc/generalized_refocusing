@@ -11,9 +11,9 @@ Require Export rewriting_system.
 Module Type RED_SEM.
 
   Parameters
-  (term          : Set) (* the language *)
-  (ckind         : Set) (* the set of reduction/context kinds *)
-  (elem_context_kinded : ckind -> ckind -> Set)
+  (term          : Type) (* the language *)
+  (ckind         : Type) (* the set of reduction/context kinds *)
+  (elem_context_kinded : ckind -> ckind -> Type)
                         (* for each k1 k2, elem_context_kinded k1 k2 defines *)
                         (* the set of elementary contexts, ec, such that *)
                         (* k1 -> ec[k2] is an instance of a production in the *)
@@ -27,9 +27,9 @@ Module Type RED_SEM.
                         (* constructor that takes k as its parameter. *)
   (elem_plug     : forall {k0 k1}, term -> elem_context_kinded k0 k1 -> term)
                         (* the function that plugs a term into an elementary context *)
-  (redex         : ckind -> Set)
+  (redex         : ckind -> Type)
                         (* the set of representations of potential redexes of a kind *)
-  (value         : ckind -> Set)
+  (value         : ckind -> Type)
                         (* the set of repressentations of values of a kind *)
   (redex_to_term : forall {k}, redex k -> term)
   (value_to_term : forall {k}, value k -> term)
@@ -51,7 +51,7 @@ Module Type RED_SEM.
   (* context, the second is the kind of the hole. *)
   (* We use inside-out representation of contexts, so the topmost symbol on the stack *)
   (* is the elementary context that is closest to the hole. *)
-  Inductive context (k1 : ckind) : ckind -> Set :=
+  Inductive context (k1 : ckind) : ckind -> Type :=
   | empty : context k1 k1
   | ccons :                                                                forall {k2 k3}
             (ec : elem_context_kinded k2 k3), context k1 k2 -> context k1 k3.
@@ -91,7 +91,7 @@ Module Type RED_SEM.
   (* Decomposition of a term is a pair consisting of a reduction context and *)
   (* a potential redex. Values have no decomposition; we just report that *)
   (* the term is a value. *)
-  Inductive decomp k : Set :=
+  Inductive decomp k : Type :=
   | d_red : forall {k'}, redex k' -> context k k' -> decomp k
   | d_val : value k -> decomp k.
   Arguments d_val {k} _. Arguments d_red {k} {k'} _ _.

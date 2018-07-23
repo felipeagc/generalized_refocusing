@@ -55,7 +55,7 @@ Module Lam_cbn_PreRefSem <: PRE_REF_SEM.
   (* The main ingredient of a reduction semantics is a grammar of contexts.  *)
   (* We start with nonterminal symbols, which are called here "context kinds". *)
 
-  (* In call by name one context kind Cᵏ is enough. *)
+  (* In call by name one context kind C\u1d4f is enough. *)
 
   Inductive ck := Cᵏ.
   Definition ckind := ck.
@@ -134,10 +134,13 @@ Module Lam_cbn_PreRefSem <: PRE_REF_SEM.
   (* the second parameter is the kind of the hole, i.e., the (unique) nonterminal *)
   (* occurring on the right-hand side of a production. *) 
 
-  Inductive eck : ckind -> ckind -> Set := 
+
+  Inductive eck : ckind -> ckind -> Type := 
   | ap_r  : term -> eck Cᵏ Cᵏ. (* Cᵏ -> Cᵏ t *)
-  Definition elem_context_kinded := eck.
+  Definition elem_context_kinded : ckind -> ckind -> Type := eck.
   Hint Unfold elem_context_kinded.
+  
+
 
   (* The starting symbol in the grammar *)
   Definition init_ckind : ckind     :=  Cᵏ.
@@ -166,11 +169,12 @@ Module Lam_cbn_PreRefSem <: PRE_REF_SEM.
   (* context, the second is the kind of the hole. *)
   (* We use inside-out representation of contexts, so the topmost symbol on the stack *)
   (* is the elementary context that is closest to the hole. *)
-  Inductive context (k1 : ckind) : ckind -> Set :=
+  Inductive context (k1 : ckind) : ckind -> Type :=
   | empty : context k1 k1
   | ccons :                                                                forall {k2 k3}
             (ec : elem_context_kinded k2 k3), context k1 k2 -> context k1 k3.
   Arguments empty {k1}. Arguments ccons {k1 k2 k3} _ _.
+
 
   Notation "[.]"      := empty.
   Notation "[.]( k )" := (@empty k).
@@ -249,7 +253,7 @@ Module Lam_cbn_PreRefSem <: PRE_REF_SEM.
   (* Decomposition of a term is a pair consisting of a reduction context and *)
   (* a potential redex. Values have no decomposition; we just report that *)
   (* the term is a value. *)
-  Inductive decomp k : Set :=
+  Inductive decomp k :=
   | d_red : forall {k'}, redex k' -> context k k' -> decomp k
   | d_val : value k -> decomp k.
   Arguments d_val {k} _. Arguments d_red {k} {k'} _ _.
@@ -294,7 +298,8 @@ Module Lam_cbn_PreRefSem <: PRE_REF_SEM.
   Class SafeKRegion (k : ckind) (P : term -> Prop) :=
     { 
       preservation :                                                        forall t1 t2,
-          P t1  ->  k |~ t1 → t2  ->  P t2;
+          P t1  ->  k |~ t1  → t2  ->  P t2;
+      
       progress :                                                               forall t1,
           P t1  ->  (exists (v : value k), t1 = v) \/ (exists t2, k |~ t1 → t2)
     }.
@@ -330,7 +335,8 @@ Module Lam_cbn_PreRefSem <: PRE_REF_SEM.
     exists (vLam v t);reflexivity. 
   Qed.
 
-  (* This ends the definition of the reduction sematnics *)
+
+  (* This ends the definition of the reduction semantics *)
 End Lam_cbn_PreRefSem.
 
 
@@ -349,7 +355,7 @@ Module Lam_cbn_Strategy <: REF_STRATEGY Lam_cbn_PreRefSem.
   (* They return that the input term is either a redex (ed_red) *)
   (* or a value (ed_val) or that we have to continue searching  *)
   (* inside a subterm (ed_dec) *)  
-  Inductive elem_dec k : Set :=
+  Inductive elem_dec k : Type :=
   | ed_red  : redex k -> elem_dec k
   | ed_dec : forall k', term -> elem_context_kinded k k' -> elem_dec k
   | ed_val  : value k -> elem_dec k.
@@ -432,7 +438,7 @@ Module Lam_cbn_Strategy <: REF_STRATEGY Lam_cbn_PreRefSem.
   (* even if the constructed order is trivial, we still have to prove all *)
   (* the properties required in the signature of the module. *)
 
-  Inductive elem_context_in k : Set :=
+  Inductive elem_context_in k : Type :=
   | ec_in : forall k' : ckind, elem_context_kinded k k' -> elem_context_in k.
   Arguments ec_in {k} _ _.
   Coercion ec_kinded_to_in {k1 k2} (ec : elem_context_kinded k1 k2) := ec_in k2 ec.
