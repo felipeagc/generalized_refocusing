@@ -240,4 +240,7 @@ Hint Resolve in_split_inv.
 Hint Resolve in_split_inv2.
 Hint Resolve set_union_nodup.
 Hint Resolve set_remove_nodup.
+Hint Resolve set_remove_1.
+Hint Resolve set_remove_2.
+Hint Resolve set_union_elim.
 
