@@ -332,6 +332,17 @@ Module Lam_cbnd_PreRefSem <: PRE_REF_SEM.
       
   where "'[' x ':=' s ']' t" := (subst x s t).
 
+  Fixpoint α_rename (t : expr) (x : var) (y : var) : expr :=
+    match t with
+    | e1 @ e2 => α_rename e1 x y @ α_rename e2 x y
+    | #z => #z
+    | λ z, e => if eq_var x z then λ y, [ z := #y ] e else λ z, e
+    | Let z e1 e2 => if eq_var x z then Let y e1 ([ z := #y ]e2) else Let z e1 e2
+    | LetNd z e1 e2 => if eq_var x z then LetNd y e1 ([ z := #y ]e2) else LetNd z e1 e2
+    end.
+
+  Axiom α_equiv :
+    forall x y (e : expr), e = α_rename e x y.
 
   (* struct cannot begin with lambda *)
   Lemma struct_not_sub_lambda :
@@ -1675,7 +1686,7 @@ Module Lam_cbn_Strategy <: REF_STRATEGY Lam_cbnd_PreRefSem.
             | right p => ed_val (vNeu _ _ _ _ _ (inctxVar x)) (* x is active var in ctx *)
             end
           | Lam x t1  => ed_val (vELam _ _ x t1 subMt) (* lambda - weak value *)
-          | Let x t1 t2 => 
+          | Let x t1 t2 => _
             match in_dec eq_var x xs with (* if x is in xs *)
             | left p => (* name clash; need to rename x with fresh var in let *)
               let f := fresh_for xs in
@@ -1728,13 +1739,14 @@ Module Lam_cbn_Strategy <: REF_STRATEGY Lam_cbnd_PreRefSem.
     destruct k,t,c ; simpl; auto;
       case_eq (in_dec eq_var v xs); intros; auto.
     simpl.
-    admit. (* alpha-renaming *)
-    simpl.
-    admit. (* alpha-renaming *)
-    simpl.
-    admit.
-  Admitted.
-
+    rewrite (α_equiv v (fresh_for xs) (λ v, t)); simpl; auto.
+    case_eq (eq_var v v); intros; eauto; elim n0; eauto.
+    rewrite (α_equiv v (fresh_for xs) (Let v t1 t2)); simpl; auto.
+    case_eq (eq_var v v); intros; eauto; elim n0; eauto.
+    rewrite (α_equiv v (fresh_for xs) (Let v t1 t2)); simpl; auto.
+    case_eq (eq_var v v); intros; eauto; elim n0; eauto.
+  Qed.
+  
 
   Definition dec_context
      {k k' : ckind} (ec : elem_context_kinded k k') (v : value k') : elem_dec k.
@@ -2061,14 +2073,17 @@ Module Lam_cbn_Strategy <: REF_STRATEGY Lam_cbnd_PreRefSem.
       repeat destruct s1.
       destruct a; subst.
       cbn.
-      admit. (* alpha *)
-    
+      rewrite (α_equiv x0 (fresh_for (x++x0::x1)) (LetNd x0 (struct_to_term s0) e)); simpl; auto.
+      case_eq (eq_var x0 x0); intros; eauto; elim n0; eauto.
+      (* alpha *)
     +
       case_eq (@In_split var eq_var x0 xs Hnd); intros; subst; eauto.
       repeat destruct s1.
       destruct a; subst.
       cbn.
-      admit. (* alpha *)
+      rewrite (α_equiv x0 (fresh_for (x++x0::x1)) (LetNd x0 (struct_to_term s0) e)); simpl; auto.
+      case_eq (eq_var x0 x0); intros; eauto; elim n0; eauto.
+      (* alpha *)
     +
       case_eq (@In_split var eq_var x0 xs0 (lambda_normal_NoDup l)); intros; subst; eauto.
       repeat destruct s2.
@@ -2086,13 +2101,14 @@ Module Lam_cbn_Strategy <: REF_STRATEGY Lam_cbnd_PreRefSem.
       auto.
      +
        case_eq (@In_split var eq_var x0 xs0 (struct_NoDup s2)); intros; subst...
-      repeat destruct s3.
+      repeat destruct s3;
       destruct a...
-      subst.
+      subst;
       cbn; 
-      simpl.
+      simpl;
       auto.
-  Admitted.
+      cbn; eauto.
+  Qed.
 
   (* Here we define an order on elementary contexts. *)
   (* This is necessary to make the generated machine deterministic. *)
@@ -2373,8 +2389,8 @@ Module Lam_cbn_Strategy <: REF_STRATEGY Lam_cbnd_PreRefSem.
           [ autof ];
       try dependent destruction k; try discriminate;
         try cbn in H1;
-      match goal with
-      | [ H : match In_split var eq_var ?x0 ?ys ?Hnd0 with
+        match goal with
+        | [ H : match In_split var eq_var ?x0 ?ys ?Hnd0 with
               | _ => _ end _ = _ |- _ ] => let s:=fresh "s" in let h:=fresh "H" in
         case_eq (@In_split _ eq_var x0 ys Hnd0); intros s h; subst;
           [ repeat destruct s; destruct a; dep_subst;
@@ -2423,6 +2439,17 @@ Module Lam_cbn_Strategy <: REF_STRATEGY Lam_cbnd_PreRefSem.
                     try discriminate;
                     subst;
                     autof
+      | [ x0 : var |- _ ] => cbn in H;
+               let s:=fresh "s" in
+               let h:=fresh "H" in
+               case_eq (@In_split _ eq_var x0 xs (struct_NoDup s0 )); intros s h; subst;
+                 [ repeat destruct s; destruct a; dep_subst;
+                   rewrite h in H;
+                   inversion H; subst;
+                   rewrite h in H |
+                   rewrite h in H;
+                   inversion H]
+      | _ => try solve [destruct ec; auto]
       | _ => idtac
       end;
       simpl; repeat split; try unfold immediate_ec;
@@ -2457,8 +2484,10 @@ let s:=fresh "s" in
 cbn in H1;
 inversion H1; subst;
 dependent destruction H8; subst.
-split with ([x1:= (# (fresh_for (x ++ x1 :: x2)))] e);
-admit.
+split with ([x1:= (# (fresh_for (x ++ x1 :: x2)))] e); 
+rewrite  (α_equiv x1 (fresh_for (x++x1::x2)) (LetNd x1 (struct_to_term s2) e));
+  simpl;
+case_eq (eq_var x1 x1); intros; eauto; elim n0; eauto.
 split with t; auto.
 split with s0; auto.
 let s:=fresh "s" in
@@ -2473,11 +2502,13 @@ let s:=fresh "s" in
 cbn in H1;
 inversion H1; subst;
   dependent destruction H8; subst.
-split with ([x1:=(# (fresh_for (x ++ x1 :: x2)))]e);
-admit.
+split with ([x1:=(# (fresh_for (x ++ x1 :: x2)))]e); 
+rewrite  (α_equiv x1 (fresh_for (x++x1::x2)) (LetNd x1 (struct_to_term s2) e));
+  simpl;
+case_eq (eq_var x1 x1); intros; eauto; elim n0; eauto.
 split with t; auto.
 split with s0; auto.
-  Admitted.
+Qed.
 
 
   (* If there are two overlapping elementary contexts in the same term, then *)
