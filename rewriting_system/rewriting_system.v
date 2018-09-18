@@ -58,7 +58,7 @@ Module Paths.
 
   Require Import Program.
   Require Export Fin2 Vector2.
-  Open Local Scope vector.
+  Local Open Scope vector.
 
 
 Section RWS.

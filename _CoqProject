@@ -1,0 +1,33 @@
+-R . Top
+Lib/Entropy.v
+Lib/Fin2.v
+Lib/Sets.v
+Lib/Util.v
+Lib/Vector2.v
+rewriting_system/rewriting_system.v
+rewriting_system/rewriting_system_tracing.v
+abstract_machine/abstract_machine.v
+abstract_machine/abstract_machine_facts.v
+reduction_semantics/reduction_languages_facts.v
+reduction_semantics/reduction_semantics_facts.v
+reduction_semantics/reduction_semantics.v
+reduction_semantics/reduction_strategy.v
+refocusing/refocusing_semantics.v
+refocusing/refocusing_semantics_facts.v
+refocusing/refocusing_machine.v
+refocusing/refocusing_machine_facts.v
+# examples/cbneed_lambda_let_revised.v
+examples/cbn_lam.v
+examples/cbn_strict.v
+examples/cbv_lam.v
+examples/lam_cl_es_no.v
+examples/lam_cl_es_no_test.v
+examples/lam_kes_cbn.v
+examples/lam_no.v
+examples/lam_no_check.v
+examples/lam_ses_no.v
+examples/lam_ses_no_check.v
+examples/lam_ses_no_test.v
+examples/miniml.v
+examples/miniml_check.v
+examples/strong_cbnd.v
