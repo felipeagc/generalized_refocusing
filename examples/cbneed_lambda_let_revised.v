@@ -288,11 +288,12 @@ Notation " 'λ'  x , t " := (Lam x t) (at level 50, x ident).
   Qed.
   
 
-  Inductive eck : ckind -> ckind -> Set := 
+  Inductive eck : ckind -> ckind -> Type := 
   | ap_r  : term -> eck E E
   | in_let : var -> term -> eck E E
-  | let_var : forall x, neutral x -> eck E E. 
-  Definition elem_context_kinded := eck.
+  | let_var : forall x, neutral x -> eck E E.
+
+  Definition elem_context_kinded : ckind -> ckind -> Type := eck.
   Hint Unfold elem_context_kinded.
 
   (* The starting symbol in the grammar *)
@@ -320,7 +321,7 @@ Notation " 'λ'  x , t " := (Lam x t) (at level 50, x ident).
 
 
   (* A reduction context is a stack of elementary contexts. *)
-  Inductive context (k1 : ckind) : ckind -> Set :=
+  Inductive context (k1 : ckind) : ckind -> Type :=
   | empty : context k1 k1
   | ccons :                                                                forall {k2 k3}
             (ec : elem_context_kinded k2 k3), context k1 k2 -> context k1 k3.
@@ -388,7 +389,7 @@ Notation " 'λ'  x , t " := (Lam x t) (at level 50, x ident).
   (* Decomposition of a term is a pair consisting of a reduction context and *)
   (* a potential redex. Values have no decomposition; we just report that *)
   (* the term is a value. *)
-  Inductive decomp k : Set :=
+  Inductive decomp k : Type :=
   | d_red : forall {k'}, redex k' -> context k k' -> decomp k
   | d_val : value k -> decomp k.
   Arguments d_val {k} _. Arguments d_red {k} {k'} _ _.
@@ -514,7 +515,7 @@ Module Lam_cbn_Strategy <: REF_STRATEGY Lam_cbnd_PreRefSem.
   Import Lam_cbnd_PreRefSem.
 
   (* Here we define the two functions: up arrow and down arrow. *)
-  Inductive elem_dec k : Set :=
+  Inductive elem_dec k : Type :=
   | ed_red  : redex k -> elem_dec k
   | ed_dec : forall k', term -> elem_context_kinded k k' -> elem_dec k
   | ed_val  : value k -> elem_dec k.
@@ -586,7 +587,7 @@ Module Lam_cbn_Strategy <: REF_STRATEGY Lam_cbnd_PreRefSem.
   (* Here we define an order on elementary contexts. *)
   (* This is necessary to make the generated machine deterministic. *)
 
-  Inductive elem_context_in k : Set :=
+  Inductive elem_context_in k : Type :=
   | ec_in : forall k' : ckind, elem_context_kinded k k' -> elem_context_in k.
   Arguments ec_in {k} _ _.
   Coercion ec_kinded_to_in {k1 k2} (ec : elem_context_kinded k1 k2) := ec_in k2 ec.
