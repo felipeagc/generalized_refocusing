@@ -295,6 +295,7 @@ Module Lam_cbn_strict_PreRefSem <: PRE_REF_SEM.
 
   (* Now we are ready to define the contraction. In our case this is *)
   (* either beta reduction or removal of the bang operator. *)
+  (* The last rule was overlooked in the FSCD paper *)
   Definition contract {k} (r : redex k) : option term :=
       match r with
       | rEApp x t0 t1 => Some ([x := t1] t0)
