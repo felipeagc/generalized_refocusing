@@ -1172,6 +1172,7 @@ Module Lam_cbnd_PreRefSem <: PRE_REF_SEM.
 
   (* Now we are ready to define the contraction. *)
 
+
   Definition contract {k} (r : redex k) : option term :=
     match r with
     | rApp x r s t => Some (sub_to_term s (Let x t r))
