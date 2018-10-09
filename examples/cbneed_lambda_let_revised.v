@@ -35,33 +35,43 @@ Module Lam_cbnd_PreRefSem <: PRE_REF_SEM.
         right. intros Heq. inversion Heq as [Heq']. apply neq. rewrite Heq'. reflexivity.
   Defined. 
 
+  (* The main ingredient of a reduction semantics is a grammar of contexts.  *)
+  (* We start with nonterminal symbols, which are called here "context kinds". *)
+
+  (* Weak call-by-need is a uniform strategy, so one context kind E is enough. *)
+
   Inductive ck := E.
   Definition ckind := ck.
   Hint Unfold  ckind.
 
 
-  (* Here we define the language of interest: lambda calculus. *)
+  (* Here we define the language of interest: lambda-let calculus.  *)
+  (* Needys parameterized by a variable x are evaluation contexts *)
+  (* with x plugged in the hole. Thus they are neutral terms with *)
+  (* the variable x being needed. *)
   Inductive expr :=
-  | App : expr -> expr -> expr
-  | Var : var -> expr
-  | Lam : var -> expr -> expr
-  | Let : var -> expr -> expr -> expr
-  | LetNd : forall x, expr -> neutral x -> expr (* let x := e in E[x] *)
+  | App : expr -> expr -> expr                  (* application *)
+  | Var : var -> expr                           (* variable *)
+  | Lam : var -> expr -> expr                   (* lambda abstraction *)
+  | Let : var -> expr -> expr -> expr           (* non-strict let *)
+  | LetS : forall x, expr -> needy x -> expr (* strict let x := e in E[x] *)
   with
-    neutral : var -> Type := (* neutrals parameterized by head variable *)
-  | nVar : forall x : var, neutral x
-  | nApp : forall x : var, neutral x -> expr -> neutral x
-  | nSub : forall x y, x <> y -> expr -> neutral y -> neutral y (* let x = e in n_y *)
-  | nNeuSub : forall x y, neutral y -> neutral x -> neutral y. (* let x := n_y in n_x *)
+    needy : var -> Type := (* needys parameterized by head variable *)
+  | nVar : forall x : var, needy x
+  | nApp : forall x : var, needy x -> expr -> needy x       (* (n_x t) *) 
+  | nLet : forall y x, x <> y -> expr -> needy x -> needy x (* let y = e in n_x *)
+  | nLetS : forall y x, needy x -> needy y -> needy x.      (* let y := n_x in n_y *)
 
 Notation " t @ s " := (App t s) (at level 40).
 Notation " # x " := (Var x) (at level 7).
 Notation " t [ x / s ] " := (Let x s t) (at level 45).
 Notation " 'λ'  x , t " := (Lam x t) (at level 50, x ident).
 
-  Inductive sub : ckind -> Type :=
-  | subMt : sub E
-  | subCons : var -> expr -> sub E -> sub E.
+
+(* Answer contexts look like substitutions.  *)
+Inductive ansCtx : ckind -> Type :=
+  | ansCtxEmpty : ansCtx E
+  | ansCtxLet : var -> expr -> ansCtx E -> ansCtx E.
 
   Definition term := expr.
   Hint Unfold term.
@@ -77,75 +87,66 @@ Notation " 'λ'  x , t " := (Lam x t) (at level 50, x ident).
   Coercion val_to_term : val >-> term.
   
   Inductive answer : ckind -> Type :=
-  | ansVal : val E -> sub E -> answer E (* (λ x . t) [y/s...] *)
-  | ansNeu : forall x, neutral x -> answer E. (* all neutrals are open terms and (intermediate) answers *)
+  | ansVal : val E -> ansCtx E -> answer E (* (λ x . t) [y/s...] *)
+  | ansNd : forall x, needy x -> answer E. (* all needys are open terms and (intermediate) answers *)
+
+  (* It should be made clear here that the values in this *)
+  (* implementation of refocusing are not the same as values in the Danvy *)
+  (* and Zerny's paper. The implementation requires all useful normal forms *)
+  (* to be values. By "useful" we mean that such a normal form put into *)
+  (* some reduction context does participate in further computation. Stuck *)
+  (* term thtat remain stuck in all reduction contexts need not be *)
+  (* values. *)
+
+
   
-  Definition value := answer. (* in this setting neutrals cannot be stuck terms *)
+  (* In this setting needys cannot be stuck terms. Needys are *)
+  (* intermediate values and we have to treat them as values *)
+  (* Hence the category of values mast contain both answers  *)
+  (* and needys *)
+  Definition value := answer. 
   Hint Unfold value.
 
-  Fixpoint sub_to_term {E} (s : sub E) (t : term) :=
+  (* A function for plugging a term to an answer context *)
+  Fixpoint ansCtx_plug {E} (s : ansCtx E) (t : term) :=
   match s with
-  | subMt => t
-  | subCons x r s' => Let x r (sub_to_term s' t)
+  | ansCtxEmpty => t
+  | ansCtxLet x r s' => Let x r (ansCtx_plug s' t)
   end.
 
-  Fixpoint neutral_to_term {x} (n : neutral x) : term :=
+  Fixpoint needy_to_term {x} (n : needy x) : term :=
   match n with
   | nVar x => Var x
-  | nApp _ n t => App (neutral_to_term n) t
-  | nSub x y _ e n => Let x e (neutral_to_term n)
-  | nNeuSub y x n1 n2 => LetNd y (neutral_to_term n1) n2
+  | nApp _ n t => App (needy_to_term n) t
+  | nLet x y _ e n => Let x e (needy_to_term n)
+  | nLetS y x n1 n2 => LetS y (needy_to_term n1) n2
   end.
     
   Fixpoint answer_to_term {k} (a : answer k) : term :=
   match a with
-  | ansVal v s => sub_to_term s v
-  | ansNeu _ n   => neutral_to_term n
+  | ansVal v s => ansCtx_plug s v
+  | ansNd _ n   => needy_to_term n
   end.
       
   Coercion answer_to_term : answer >-> term.
-  Coercion neutral_to_term : neutral >-> term.
+  Coercion needy_to_term : needy >-> term.
 
   (* Here we define the set of potential redices. *)
-  
+  (* Actually, they are just redices as defined in the paper *)
   Inductive red : ckind -> Type :=
-  | rApp : val E -> sub E -> term -> red E
-  | rSub : forall x, neutral x -> val E -> sub E -> red E
-  | rSubNd : forall x, term -> neutral x -> red E.
+  | rApp : val E -> ansCtx E -> term -> red E                 (* A[v] t *)
+  | rLetS : forall x, needy x -> val E -> ansCtx E -> red E   (* let x := A[v] in E[x] *)
+  | rLet : forall x, term -> needy x -> red E.                (* let x = t in E[x] *)
    
   Definition redex := red.
   Hint Unfold redex.
  
-  Reserved Notation "'[' x ':=' s ']' t" (at level 20).
-
-  Fixpoint subst (x:var) (s:term) (t:term) : term :=
-    match t with
-    | Var x' => 
-        if eq_var x x' then s else t
-    | Lam x' t1 => 
-        Lam x' (if eq_var x x' then t1 else ([x:=s] t1)) 
-    | App t1 t2 => 
-        App ([x:=s] t1) ([x:=s] t2)
-    | Let x' r u => Let x' (subst x s r) (if eq_var x x' then u else [x:=s] u)
-    | LetNd x' r n => 
-      LetNd x' (subst x s r) (if eq_var x x' then n else n)
-    end
- 
-  where "'[' x ':=' s ']' t" := (subst x s t).
-
-  Fixpoint subst_neutral (x:var) (n:neutral x) (s : term) : term :=
-    match n with
-    | nVar y => s
-    | nApp v n t => App (subst_neutral v n s) t
-    | nSub y x' _ e n => Let x e (subst_neutral x' n s)
-    | nNeuSub y x' n n' => LetNd y (subst_neutral x' n s) n'    
-    end.
 
   Definition redex_to_term {k} (r : redex k) : term :=
       match r with
-      | rApp v s t => App (sub_to_term s v) t
-      | rSub x n v s => LetNd x (sub_to_term s (val_to_term v)) n
-      | rSubNd x t n => Let x t (neutral_to_term n)
+      | rApp v s t => App (ansCtx_plug s v) t
+      | rLetS x n v s => LetS x (ansCtx_plug s (val_to_term v)) n
+      | rLet x t n => Let x t (needy_to_term n)
       end.
       
   Coercion redex_to_term : redex >-> term.
@@ -160,9 +161,9 @@ Notation " 'λ'  x , t " := (Lam x t) (at level 50, x ident).
   Qed.
 
 
-  Lemma sub_to_term_val_injective : 
-    forall {k} (s s' : sub k) (v v' : val E), 
-    sub_to_term s v = sub_to_term s' v' -> s = s' /\ v = v'.
+  Lemma ansCtx_plug_val_injective : 
+    forall {k} (s s' : ansCtx k) (v v' : val E), 
+    ansCtx_plug s v = ansCtx_plug s' v' -> s = s' /\ v = v'.
 
   Proof with auto.
   intros k s s' v v' H. 
@@ -175,9 +176,9 @@ Notation " 'λ'  x , t " := (Lam x t) (at level 50, x ident).
 
 
 
-  Lemma sub_to_term_var_injective : 
-    forall {k} (s s' : sub k) x x', 
-    sub_to_term s (Var x) = sub_to_term s' (Var x') -> s = s' /\ x = x'.
+  Lemma ansCtx_plug_var_injective : 
+    forall {k} (s s' : ansCtx k) x x', 
+    ansCtx_plug s (Var x) = ansCtx_plug s' (Var x') -> s = s' /\ x = x'.
 
   Proof with auto.
   intros k s s' x x' H. 
@@ -186,9 +187,10 @@ Notation " 'λ'  x , t " := (Lam x t) (at level 50, x ident).
  Qed.  
 
   
-  Lemma sub_to_term_letnd_injective : 
-    forall {k} (s s' : sub k) x y e1 e2 nx ny, 
-    sub_to_term s (LetNd x e1 nx) = sub_to_term s' (LetNd y e2 ny) -> s = s' /\ e1 = e2 /\ x = y /\ nx ~= ny.
+  Lemma ansCtx_plug_lets_injective : 
+    forall {k} (s s' : ansCtx k) x y e1 e2 nx ny, 
+      ansCtx_plug s (LetS x e1 nx) = ansCtx_plug s' (LetS y e2 ny) ->
+         s = s' /\ e1 = e2 /\ x = y /\ nx ~= ny.
 
   Proof with auto.
   intros k s s' x y e1 e2 nx ny H. 
@@ -197,21 +199,21 @@ Notation " 'λ'  x , t " := (Lam x t) (at level 50, x ident).
  Qed.  
 
   
-  Lemma sub_to_term_neutral : 
-    forall {k} (s s' : sub k) (v : val E) {x} (n : neutral x), 
-    sub_to_term s v = sub_to_term s' n -> False.
+  Lemma ansCtx_plug_needy : 
+    forall {k} (s s' : ansCtx k) (v : val E) {x} (n : needy x), 
+    ansCtx_plug s v = ansCtx_plug s' n -> False.
 
   Proof with auto.
   induction s; simpl; intros.
   destruct v; destruct s'; destruct n; discriminate.
   destruct s'. destruct n; simpl in *; try discriminate.
-  inversion H. elim IHs with subMt v0 y n0...
+  inversion H. elim IHs with ansCtxEmpty v0 x n0...
   inversion H. elim (IHs _ _ _ _ H3).
   Qed.
 
-  Lemma sub_to_term_var : 
-    forall {k} (s s' : sub k) x (v : val E), 
-    sub_to_term s v = sub_to_term s' (Var x) -> False.
+  Lemma ansCtx_plug_var : 
+    forall {k} (s s' : ansCtx k) x (v : val E), 
+    ansCtx_plug s v = ansCtx_plug s' (Var x) -> False.
 
   Proof with auto.
   induction s; simpl; intros.
@@ -220,9 +222,9 @@ Notation " 'λ'  x , t " := (Lam x t) (at level 50, x ident).
   inversion H. elim IHs with s' x v0...
   Qed.
 
-  Lemma neutral_to_term_injective : 
-    forall {x y} (n : neutral x) (n' : neutral y), 
-    neutral_to_term n = neutral_to_term n' -> n ~= n' /\ x = y.
+  Lemma needy_to_term_injective : 
+    forall {x y} (n : needy x) (n' : needy y), 
+    needy_to_term n = needy_to_term n' -> n ~= n' /\ x = y.
 
   Proof with auto.
     induction n; intros; destruct n'; try discriminate;
@@ -234,20 +236,6 @@ Notation " 'λ'  x , t " := (Lam x t) (at level 50, x ident).
     dependent rewrite H0; auto. 
     elim IHn1 with n'1...
   Qed.
-(*
- Lemma neutral_to_term_injective : 
-    forall {x} (n n' : neutral x), 
-    neutral_to_term n = neutral_to_term n' -> n = n'.
-
-  Proof with auto.
-    induction n; intros; destruct n'; try discriminate...
-    inversion H. rewrite IHn with n'...
-    inversion H. rewrite IHn with n'...
-    inversion H; subst. 
-    rewrite proof_irrelevance with (x0 <> y) n n1...
-    inversion H. dependent rewrite H3. rewrite IHn1 with n'1...
-  Qed.
-*)
 
   Lemma answer_to_term_injective : 
     forall {k} (a a' : answer k), 
@@ -255,11 +243,11 @@ Notation " 'λ'  x , t " := (Lam x t) (at level 50, x ident).
 
   Proof with auto.
     destruct a; dependent destruction  a'; intros...
-    f_equal; elim sub_to_term_val_injective with s s0 v v0...
-    elim sub_to_term_neutral with s subMt v _ n...
-    elim sub_to_term_neutral with s subMt v _ n...
+    f_equal; elim ansCtx_plug_val_injective with a a0 v v0...
+    elim ansCtx_plug_needy with a ansCtxEmpty v _ n...
+    elim ansCtx_plug_needy with a ansCtxEmpty v _ n...
     inversion H.
-    elim neutral_to_term_injective with n n0; intros; subst...
+    elim needy_to_term_injective with n n0; intros; subst...
     rewrite H0...
   Qed.
 
@@ -282,16 +270,25 @@ Notation " 'λ'  x , t " := (Lam x t) (at level 50, x ident).
     destruct r ; dependent destruction r';
     inversion H; subst.
     dependent destruction v; dependent destruction v0...
-    f_equal; elim sub_to_term_val_injective with s s0 (vLam v t) (vLam v0 t0); intros; subst...
-    elim sub_to_term_val_injective with s s0 v v0; intros; subst...
-    elim neutral_to_term_injective with n n0; intros; subst...
+    f_equal; elim ansCtx_plug_val_injective with a a0 (vLam v t) (vLam v0 t0); intros; subst...
+    elim ansCtx_plug_val_injective with a a0 v v0; intros; subst...
+    elim needy_to_term_injective with n n0; intros; subst...
   Qed.
-  
+
+
+  (* Here comes the actual definition of the grammar of contexts. *)
+  (* We have two three non-trivial productions:  E -> E t,  E -> let x = t in E and *)
+  (* E -> let x := E in E[x] *)
+  (* There is also a trivial production  E -> [] which is omitted here. *)
+  (* The first parameter of eck is the nonterminal on the left-hand side; *)
+  (* the second parameter is the kind of the hole, i.e., the (unique) nonterminal *)
+  (* occurring on the right-hand side of a production. *) 
+
 
   Inductive eck : ckind -> ckind -> Type := 
-  | ap_r  : term -> eck E E
-  | in_let : var -> term -> eck E E
-  | let_var : forall x, neutral x -> eck E E.
+  | ap_r  : term -> eck E E                           (* E -> E t *)
+  | in_let : var -> term -> eck E E                   (* E -> let x = t in E *)
+  | let_var : forall x, needy x -> eck E E.           (* E -> let x := E in E[x] *)
 
   Definition elem_context_kinded : ckind -> ckind -> Type := eck.
   Hint Unfold elem_context_kinded.
@@ -304,7 +301,7 @@ Notation " 'λ'  x , t " := (Lam x t) (at level 50, x ident).
       match ec with
       | ap_r  t' => App t t'
       | in_let x s => Let x s t
-      | let_var x n => LetNd x t n
+      | let_var x n => LetS x t n
       end.
   Notation "ec :[ t ]" := (elem_plug t ec) (at level 0).
 
@@ -371,18 +368,32 @@ Notation " 'λ'  x , t " := (Lam x t) (at level 50, x ident).
   Qed.
 
   
-  (* Here we define substitutions, which is necessary to define contraction. *)
-  (* Be careful: the definition works only for closed terms s and  *)
-  (* we do not check if a substitution is capture-avoiding. *)
+  (* Here we define substitution used in the definition of contraction. *)
+
+  (* substitute term s for the needed variable x in the needy term n *)
+  Fixpoint subst_needy (x:var) (n:needy x) (s : term) : term :=
+    match n with
+    | nVar y => s           (* [x][x:=s] = s *)    (* types guarantee that x=y *)
+    | nApp v n t => App (subst_needy v n s) t      (* (n[x] t)[x:=s] = (n[s] t) *)
+                                                   (*  again, types guarantee that v=x *)  
+    | nLet y x' _ e n => Let y e (subst_needy x' n s)
+                            (* (let y = e in n[x])[x:=s] =  (let y = e in n[s])*)
+                            (* again, types guarantee that x=x' *) 
+    | nLetS y x' n n' => LetS y (subst_needy x' n s) n'
+                              (* (let y := n[x] in n'[y])[x:=s] = (let y := n[s] in n'[y]) *)
+                              (* here types guarantee that x=x' *)
+    end.
 
 
   (* Now we are ready to define the contraction. *)
+  (* For the sake of simplicity we do not introduce the fourth (derived) rule *)
   
   Definition contract {k} (r : redex k) : option term :=
       match r with
-      | rApp (vLam x r) s t => Some (sub_to_term s (Let x t r))
-      | rSub x n v s => Some (sub_to_term s (Let x (val_to_term v) (subst_neutral x n v)))
-      | rSubNd x t n => Some (LetNd x t n)
+      | rApp (vLam x r) a t => Some (ansCtx_plug a (Let x t r))    (* a[λx.r]t -> a[let x = t in r] *)
+      | rLetS x n v a => Some (ansCtx_plug a (Let x (val_to_term v) (subst_needy x n v)))
+                              (* let x := a[v] in n[x]  ->  a[let x = v in n[v]]  *)
+      | rLet x t n => Some (LetS x t n)   (* let x = t in n  ->  let x := t in n  *)
       end.
       
 
@@ -452,19 +463,19 @@ Notation " 'λ'  x , t " := (Lam x t) (at level 50, x ident).
   Proof with auto.
     intros ? ? ec t v H.
     destruct ec;   dependent destruction v; inversion H; 
-    try (dependent destruction s; 
+    try (dependent destruction a; 
     dependent destruction v; discriminate).
     destruct n; try discriminate.
-    exists (ansNeu x n); inversion H; subst...
-    dependent destruction s; dependent destruction v; try discriminate.
+    exists (ansNd x n); inversion H; subst...
+    dependent destruction a; dependent destruction v; try discriminate.
     injection H1; intros; subst...
-    exists (ansVal (vLam v t1) s)...
+    exists (ansVal (vLam v t1) a)...
     destruct n; try discriminate.
     injection H; intros; subst;
-    exists (ansNeu _ n0); simpl; auto.
+    exists (ansNd _ n0); simpl; auto.
     destruct n0; try discriminate.
     inversion H1; subst...
-    exists (ansNeu _ n0_1)...
+    exists (ansNd _ n0_1)...
   Qed.
   
 
@@ -475,19 +486,19 @@ Notation " 'λ'  x , t " := (Lam x t) (at level 50, x ident).
   Proof with auto.
     intros k v r.
     destruct r; destruct v; intro H; inversion H;
-    try (dependent destruction s0; 
+    try (dependent destruction a0; 
     dependent destruction v; try discriminate).
     destruct n; inversion H1; subst;
-    elim sub_to_term_neutral with s subMt v0 x n...
+    elim ansCtx_plug_needy with a ansCtxEmpty v0 x n...
     destruct n0; try discriminate; inversion H; intros; subst.
-    elim sub_to_term_neutral with s subMt v0 _ n0_1...
-    dependent destruction s;
+    elim ansCtx_plug_needy with a ansCtxEmpty v0 _ n0_1...
+    dependent destruction a;
     inversion H1; intros; subst...
     dependent destruction v; discriminate.
-    elim sub_to_term_neutral with s subMt v _ n...
+    elim ansCtx_plug_needy with a ansCtxEmpty v _ n...
     destruct n0; try discriminate.
     inversion H1; subst.
-    elim neutral_to_term_injective with n1 n...
+    elim needy_to_term_injective with n1 n...
   Qed.
 
   (* There are no other potential redices inside a potential redex; *)
@@ -500,9 +511,9 @@ Notation " 'λ'  x , t " := (Lam x t) (at level 50, x ident).
     destruct ec; dependent destruction r;
     inversion H; 
     subst.
-    exists (ansVal v s)...
-    exists (ansNeu _ n)...
-    exists (ansVal v s)...
+    exists (ansVal v a)...
+    exists (ansNd _ n)...
+    exists (ansVal v a)...
   Qed.
 
 End Lam_cbnd_PreRefSem.
@@ -530,10 +541,10 @@ Module Lam_cbn_Strategy <: REF_STRATEGY Lam_cbnd_PreRefSem.
     match k with E => 
                  match t with
                  | App t1 t2 => ed_dec  E t1 (ap_r t2)
-                 | Var x     => ed_val (ansNeu _ (nVar x))
-                 | Lam x t1  => ed_val (ansVal (vLam x t1) subMt)
+                 | Var x     => ed_val (ansNd _ (nVar x))
+                 | Lam x t1  => ed_val (ansVal (vLam x t1) ansCtxEmpty)
                  | Let x t1 t2 => ed_dec E t2 (in_let x t1)
-                 | LetNd x t n => ed_dec E t (let_var x n)
+                 | LetS x t n => ed_dec E t (let_var x n)
                  end
     end.
 
@@ -554,15 +565,15 @@ Module Lam_cbn_Strategy <: REF_STRATEGY Lam_cbnd_PreRefSem.
   Definition dec_context {k k': ckind} (ec: elem_context_kinded k k') (v: value k') : elem_dec k :=
     match ec, v with
     | ap_r t, ansVal v' s => ed_red  (rApp v' s t)
-    | ap_r t, ansNeu _ n => ed_val (ansNeu _ (nApp _ n t))
-    | in_let x t, ansVal v' s => ed_val (ansVal v' (subCons x t s))
-    | in_let x t, ansNeu y n => 
-      (match eq_var x y with
-      | left peq => ed_red (rSubNd y t n) (* redex! *)
-      | right pneq => ed_val (ansNeu y (nSub x _ pneq t n))
+    | ap_r t, ansNd _ n => ed_val (ansNd _ (nApp _ n t))
+    | in_let x t, ansVal v' s => ed_val (ansVal v' (ansCtxLet x t s))
+    | in_let x t, ansNd y n => 
+      (match eq_var y x with
+      | left peq => ed_red (rLet y t n) (* redex! *)
+      | right pneq => ed_val (ansNd y (nLet x _ pneq t n))
       end) 
-    | let_var x n, ansVal v s => ed_red (rSub _ n v s) 
-    | let_var x n, ansNeu _ n' => ed_val (ansNeu _ (nNeuSub x _ n' n))
+    | let_var x n, ansVal v s => ed_red (rLetS _ n v s) 
+    | let_var x n, ansNd _ n' => ed_val (ansNd _ (nLetS x _ n' n))
     end.
  
 
@@ -580,7 +591,7 @@ Module Lam_cbn_Strategy <: REF_STRATEGY Lam_cbnd_PreRefSem.
     destruct ec; dependent destruction v; 
       simpl;
       try solve [ auto ].
-    case_eq (eq_var v0 x); intros; subst; auto.
+    case_eq (eq_var x v0); intros; subst; auto.
   Qed.
 
 
@@ -593,9 +604,9 @@ Module Lam_cbn_Strategy <: REF_STRATEGY Lam_cbnd_PreRefSem.
   Coercion ec_kinded_to_in {k1 k2} (ec : elem_context_kinded k1 k2) := ec_in k2 ec.
 
 
-  (* In the case of call-by-name the order is trivial. *)
-  (* We have only one production in the grammar and there are no overlapping *)
-  (* elementary contexts. There is simply nothing to compare. *)
+  (* In the case of weak call-by-need the order is trivial. *)
+  (* We have three productions in the grammar; none of them are overlapping. *)
+  (* So there is  nothing to compare. *)
   Definition search_order (k : ckind) (t : term) (ec ec0 : elem_context_in k) : Prop := False.
  
   (* But we still have to go through all of the following. *)
@@ -756,7 +767,7 @@ Module Lam_cbn_Strategy <: REF_STRATEGY Lam_cbnd_PreRefSem.
     destruct ec0; dependent destruction ec1;  dependent destruction v;
     try discriminate; 
     solve [simpl in *;
-    case_eq (eq_var v0 x); intros; subst; rewrite H0 in H; discriminate].
+    case_eq (eq_var x v0); intros; subst; rewrite H0 in H; discriminate].
   Qed.
 
 
@@ -796,12 +807,17 @@ Module Lam_cbn_sim := DetAbstractMachine_Sim Lam_cbn_EAM.
 Import Lam_cbn_sim.
 
 
+(* some terms for testing *)
 Definition x  := Id 1.
+Definition y  := Id 2.
+Definition z  := Id 3.
 Definition xx := λ x , # x @ # x.
 Definition id := λ  x , # x.
-Definition t := xx @ id.
-
-
+Definition idz := λ  z , # z.
+Definition t := xx @ idz.
+Definition s := (λ x, ((λ y, # x @ # y) @ id)) @ id.
+(* Example from Fig 2 in our paper on strong call by need *)
+Definition fig2 :=  ((λ x, (λ y, # x @ # x)) @ (idz @ idz)) @ (Var (Id 4)).
 
 (* List of numbered configurations while executing the machine on configuration c
    for n steps and starting the numbering from i  *)
@@ -818,7 +834,7 @@ Fixpoint list_configs c n i :=
 (* List of numbered configurations while executing the machine for n steps on term t *)
 Fixpoint list_configurations t n := list_configs (Some (load t)) n 1.
 
-Eval compute in list_configurations  t 50.
+Eval compute in list_configurations t 500.
 
 
 (* and the complete machine *)
