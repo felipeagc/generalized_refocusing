@@ -1175,8 +1175,8 @@ Module Lam_cbnd_PreRefSem <: PRE_REF_SEM.
   Definition contract {k} (r : redex k) : option term :=
     match r with
     | rApp x r s t => Some (sub_to_term s (Let x t r))
-    | rSub  x xs n y t s => Some (Let x (sub_to_term s (λ y, t))
-                                      (sub_to_term s (subst x (λ y, t) n)))
+    | rSub  x xs n y t s => Some (sub_to_term s (Let x (λ y, t)
+                                                     (subst x (λ y, t) n)))
     | rSubNd x xs _ _ n e => Some (LetNd x e (n:term))
     | rSubNdE x xs _ _  s y t s0 => Some (Let x (s : term) (sub_to_term s0 (Lam y t)))
     | _ => None (* stuck terms *)
@@ -2551,12 +2551,18 @@ Module Lam_cbn_sim := DetAbstractMachine_Sim Lam_cbn_EAM.
 Import Lam_cbn_sim.
 
 
-Definition x  := Id 1.
+Definition x := Id 1.
+Definition z := Id 2.
 Definition xx := (λ x, (# x @ # x)).
 Definition id := λ  x, # x.
 Definition t := xx @ id.
 Definition t2 := Let x id (Let (Id 2) (# x) (# (Id 2))).
 Definition t3 := Let x id (# x).
+Definition t4 := Let x (# z) (# x). (* let x = z in x with empty set of frozen vars is stuck in BB *)
+Definition t5 := λ z, Let x (# z) (# x).
+
+
+
 
 (* List of numbered configurations while executing the machine on configuration c
    for n steps and starting the numbering from i  *)
@@ -2574,7 +2580,8 @@ Fixpoint list_configs c n i :=
 Fixpoint list_configurations t n := list_configs (Some (load t)) n 1.
 
 Definition test1 := list_configurations t3 50.
-
+Definition test4 := list_configurations t4 50.
+Definition test5 := list_configurations t5 50.
 
 (* Some commands for extraction *)
 
@@ -2594,6 +2601,9 @@ Extraction Inline Lam_cbn_Strategy.dec_context.
 Extraction Inline Lam_cbn_RefSem.ST.dec_term.
 Print Extraction Inline.
 Extraction "eam" Lam_cbn_EAM.dnext_conf.
+
+Extraction "test4" test4.
+Extraction "test5" test5.
 
 (*Extraction "test1" test1.
 Extraction "strong_cbn" list_configs . 
