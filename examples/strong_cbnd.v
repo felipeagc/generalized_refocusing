@@ -2562,7 +2562,8 @@ Definition t3 := Let x id (# x).
 Definition t4 := Let x (# z) (# x). (* let x = z in x with empty set of frozen vars is stuck in BB *)
 Definition t5 := λ z, Let x (# z) (# x).
 
-
+Definition t6 :=  Let x (# z) ((# x) @ t).
+Definition t7 :=  λ z, Let x (# z) ((# x) @ t).
 
 
 (* List of numbered configurations while executing the machine on configuration c
@@ -2580,9 +2581,16 @@ Fixpoint list_configs c n i :=
 (* List of numbered configurations while executing the machine for n steps on term t *)
 Fixpoint list_configurations t n := list_configs (Some (load t)) n 1.
 
+
+Definition test := list_configurations t 50.
 Definition test1 := list_configurations t3 50.
 Definition test4 := list_configurations t4 50.
 Definition test5 := list_configurations t5 50.
+Definition test6 := list_configurations t6 50.
+Definition test7 := list_configurations t7 50.
+
+Eval compute in  test4.
+
 
 (* Some commands for extraction *)
 
