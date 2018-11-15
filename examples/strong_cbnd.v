@@ -1163,7 +1163,6 @@ Module Lam_cbnd_PreRefSem <: PRE_REF_SEM.
   Lemma wf_immediate_subterm: well_founded immediate_subterm.
   Proof.    REF_LANG_Help.prove_st_wf.
   Qed.
-
   
   (* Here we define substitutions, which is necessary to define contraction. *)
   (* Be careful: the definition works only for closed terms s and  *)
@@ -2127,8 +2126,8 @@ Module Lam_cbn_Strategy <: REF_STRATEGY Lam_cbnd_PreRefSem.
     match ec, ec0 with 
     | k_ap_l_E _ _ _ _ _, k_ap_r _ _ => immediate_ec ec t /\ immediate_ec ec0 t 
     | let_var2 _ _ _ _ _ _ _ , let_var _ _ _ _=> immediate_ec ec t /\ immediate_ec ec0 t 
-    | let_var2 _ _ _ _ _ _ _ , in_let _ _ _ _ _=> immediate_ec ec t /\ immediate_ec ec0 t 
-    | let_var _ _ _ _ , in_let _ _ _ _ _ => immediate_ec ec t /\ immediate_ec ec0 t 
+(*    | let_var2 _ _ _ _ _ _ _ , in_let _ _ _ _ _=> immediate_ec ec t /\ immediate_ec ec0 t 
+    | let_var _ _ _ _ , in_let _ _ _ _ _ => immediate_ec ec t /\ immediate_ec ec0 t *)
     | _, _           => False
     end.
 
@@ -2181,12 +2180,12 @@ Module Lam_cbn_Strategy <: REF_STRATEGY Lam_cbnd_PreRefSem.
     intros k t [? ec0] [? ec1] [? ec2] H H0.
     destruct ec0; dependent destruction ec1; prf;
       try solve [ autof ].
-    dependent destruction ec2; prf;
+(*    dependent destruction ec2; prf;
       try solve [ autof ];
     simpl;
     split;
     destruct H; auto.
-    destruct H0; auto.
+    destruct H0; auto.*)
   Qed.
 
   
