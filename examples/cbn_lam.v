@@ -55,7 +55,7 @@ Module Lam_cbn_PreRefSem <: PRE_REF_SEM.
   (* The main ingredient of a reduction semantics is a grammar of contexts.  *)
   (* We start with nonterminal symbols, which are called here "context kinds". *)
 
-  (* In call by name one context kind C\u1d4f is enough. *)
+  (* In call by name one context kind Cᵏ is enough. *)
 
   Inductive ck := Cᵏ.
   Definition ckind := ck.
