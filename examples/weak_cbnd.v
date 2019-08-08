@@ -65,7 +65,7 @@ Module Lam_cbnd_PreRefSem <: PRE_REF_SEM.
 Notation " t @ s " := (App t s) (at level 40).
 Notation " # x " := (Var x) (at level 7).
 Notation " t [ x / s ] " := (Let x s t) (at level 45).
-Notation " 'λ'  x , t " := (Lam x t) (at level 50, x ident).
+Notation " 'λ'  x , t " := (Lam x t) (at level 50).
 
 
 (* Answer contexts look like substitutions.  *)

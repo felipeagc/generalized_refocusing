@@ -90,7 +90,7 @@ Module Lam_cbnd_PreRefSem <: PRE_REF_SEM.
   Notation " # x " := (Var x) (at level 7, no associativity).
 (*  Notation " '{' x '//' s '}' t " := (Let x s t) (at level 47, right associativity).
   Notation " 'let' x ':=' s 'in' t " := (LetNd x s t) (at level 47).*)
-  Notation " 'λ'  x , t " := (Lam x t) (at level 50, x ident).
+  Notation " 'λ'  x , t " := (Lam x t) (at level 50).
 
   
   Inductive (* term that is decomposed as active variable in context *)
@@ -2608,12 +2608,12 @@ Extraction Inline Lam_cbn_Strategy.dec_term.
 Extraction Inline Lam_cbn_Strategy.dec_context.
 Extraction Inline Lam_cbn_RefSem.ST.dec_term.
 Print Extraction Inline.
-Extraction "eam" Lam_cbn_EAM.dnext_conf.
+(*Extraction "eam" Lam_cbn_EAM.dnext_conf.
 
 Extraction "test4" test4.
 Extraction "test5" test5.
 
-(*Extraction "test1" test1.
+Extraction "test1" test1.
 Extraction "strong_cbn" list_configs . 
 *)
 
