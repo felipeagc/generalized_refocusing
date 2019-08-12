@@ -258,8 +258,8 @@ Module RefEvalApplyMachine_Facts (R   : RED_REF_SEM)
     apply refocus_in_eqv_dec in H5...
     destruct (refocus_in_sim _ _ _ [.] H5) as [n [sts [G [G1 G2] ]]];
     destruct                          G1 as [[G0 G1] | [k3 [ec [v [G1 G0]]]]];
-        rewrite <- (compose_empty c) in *;
-        rewrite <- (compose_empty (c2)) in *;
+        rewrite <- (compose_empty _ _ c) in *;
+        rewrite <- (compose_empty _ _ c2) in *;
         exists n, sts, (c_eval t' c2);
  
      (
@@ -294,8 +294,8 @@ Module RefEvalApplyMachine_Facts (R   : RED_REF_SEM)
     apply refocus_ed_val_eqv_refocus_out in H5.
     destruct (refocus_out_sim _ _ _ [.] H5) as [n [sts [G [G1 G2] ]]];
     destruct                             G1 as[[G0 G1] | [k3 [ ec [v' [G1 G0]]]]];
-        rewrite <- (compose_empty c) in *;
-        rewrite <- (compose_empty (c2)) in *;
+        rewrite <- (compose_empty _ _ c) in *;
+        rewrite <- (compose_empty _ _ c2) in *;
         exists n, sts, (c_eval t' c2);
     (
         split; [ | split];
@@ -341,7 +341,7 @@ Module RefEvalApplyMachine_Facts (R   : RED_REF_SEM)
  
     apply refocus_in_eqv_dec in H1...
     destruct (refocus_in_sim _ _ _ [.] H1) as [n [sts' [H3 [H4 H5]]]].
-    rewrite <- (compose_empty c) in *.
+    rewrite <- (compose_empty _ _ c) in *.
     assert (H6 : forall m, (sts 0 :: sts')[@m] = sts m).
     {
         rewrite <- H in H5.
@@ -364,7 +364,7 @@ Module RefEvalApplyMachine_Facts (R   : RED_REF_SEM)
             apply (H5 (Fin.FS m0)).
     }
     destruct d as [k' r c0 | v].
-    - rewrite <- (compose_empty c0) in *.
+    - rewrite <- (compose_empty _ _ c0) in *.
       destruct H4 as [[G G0] | [k3 [ec [v [G0 G]]]]];
           assert (H7 : n < S n) by eauto with arith;
           rewrite vec_last_by_index with _ H7 in G;
@@ -409,7 +409,7 @@ Module RefEvalApplyMachine_Facts (R   : RED_REF_SEM)
     apply refocus_in_eqv_dec in H1...
     apply refocus_ed_val_eqv_refocus_out in H1.
     destruct (refocus_out_sim _ _ _ [.] H1) as [n [sts' [H3 [H4 H5]]]].
-    rewrite <- (compose_empty c) in *.
+    rewrite <- (compose_empty _ _ c) in *.
     assert (H6 : forall m, (sts 0 :: sts')[@m] = sts m).
     {
         rewrite <- H in H5.
@@ -432,7 +432,7 @@ Module RefEvalApplyMachine_Facts (R   : RED_REF_SEM)
             apply (H5 (Fin.FS m0)).
     }
     destruct d as [k' r c0 | v0].
-    - rewrite <- (compose_empty c0) in *.
+    - rewrite <- (compose_empty _ _ c0) in *.
       destruct H4 as [[G G0] | [k3 [ec [v0 [G0 G]]]]];
           assert (H7 : n < S n) by eauto with arith;
           rewrite vec_last_by_index with _ H7 in G;
@@ -497,11 +497,8 @@ Module RefEvalApplyMachine_Facts (R   : RED_REF_SEM)
         right.
         remember (dec_term t k) as DEC eqn: H3; symmetry in H3.
         assert (H4 := dec_term_correct t k); rewrite H3 in H4.
-        destruct DEC; subst;
-        try solve
-        [ autof
-        | eexists; compute; eauto]. 
-        -  destruct (R.progress _ H2) as [[v H4] | [t2 H4]].
+        destruct DEC; subst.
+        - destruct (R.progress _ H2) as [[v H4] | [t2 H4]].
           + apply value_trivial in H4...
             destruct H4 as [v' H4]; symmetry in H4.
             apply value_redex in H4...
@@ -509,6 +506,8 @@ Module RefEvalApplyMachine_Facts (R   : RED_REF_SEM)
             destruct sts as [ | st n sts];
             [ exists st2 | exists st ]; 
             apply (G1 F1).
+        - eexists. apply t_term, H3.
+        - eexists. apply t_val, H3.
     }
 
     {
@@ -517,10 +516,7 @@ Module RefEvalApplyMachine_Facts (R   : RED_REF_SEM)
         - right.
           remember (dec_context ec v) as DEC eqn: H3; symmetry in H3.
           assert (H4 := dec_context_correct ec v); rewrite H3 in H4.
-          destruct DEC; subst;
-          try solve
-          [ autof
-          | eexists; compute; eauto].
+          destruct DEC; subst.
           + destruct (R.progress _ H2) as [[v0 H5] | [t2 H5]].
             * simpl in H5; rewrite H4 in H5.
               apply value_trivial in H5...
@@ -531,6 +527,8 @@ Module RefEvalApplyMachine_Facts (R   : RED_REF_SEM)
               destruct sts as [ | st n sts];
               [ exists st2 | exists st ]; 
               apply (G1 F1).
+          + eexists. apply (t_cterm _ _ _ _ _ H3).
+          + eexists. apply t_cval, H3.
     }
   }
   Qed.

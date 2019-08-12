@@ -8,6 +8,7 @@ rewriting_system/rewriting_system.v
 rewriting_system/rewriting_system_tracing.v
 abstract_machine/abstract_machine.v
 abstract_machine/abstract_machine_facts.v
+reduction_semantics/path.v
 reduction_semantics/reduction_languages_facts.v
 reduction_semantics/reduction_semantics_facts.v
 reduction_semantics/reduction_semantics.v

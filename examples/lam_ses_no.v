@@ -152,20 +152,11 @@ Module Lam_SES_NO_PreRefSem <: PRE_REF_SEM.
       end.
   Notation "ec :[ t ]" := (elem_plug t ec) (at level 0).
 
-  (* A context is a stack of elementary contexts. *)
-  (* The first parameter is the nonterminal generating the whole *)
-  (* context, the second is the kind of the hole. *)
-  (* We use inside-out representation of contexts, so the topmost symbol on the stack *)
-  (* is the elementary context that is closest to the hole. *)
-  Inductive context (k1 : ckind) : ckind -> Type :=
-  | empty : context k1 k1
-  | ccons :                                                                forall {k2 k3}
-            (ec : elem_context_kinded k2 k3), context k1 k2 -> context k1 k3.
-  Arguments empty {k1}. Arguments ccons {k1 k2 k3} _ _.
+  Definition context : ckind -> ckind -> Type := path elem_context_kinded.
 
-  Notation "[.]"      := empty.
-  Notation "[.]( k )" := (@empty k).
-  Infix "=:"          := ccons (at level 60, right associativity).
+  Definition plug t {k1 k2} (c : context k1 k2) : term :=
+    path_action (@elem_plug) t c.
+  Notation "c [ t ]" := (plug t c) (at level 0).
 
   (* Again we use a coercion to identify redices with the corresponding lambda terms. *)  
   Definition redex_to_term {k} (r : redex k) : term :=
@@ -215,17 +206,6 @@ Module Lam_SES_NO_PreRefSem <: PRE_REF_SEM.
   Qed.
 
 
-  (* Contexts may be composed (i.e., nested). *)
-  (* The first parameter is the internal context, the second is external. *) 
-  Fixpoint compose {k1 k2} (c0 : context k1 k2) 
-                      {k3} (c1 : context k3 k1) : context k3 k2 := 
-      match c0 in context _ k2' return context k3 k2' with
-      | [.]     => c1
-      | ec=:c0' => ec =: compose c0' c1
-      end.
-  Infix "~+" := compose (at level 60, right associativity).
-
-
   Lemma elem_plug_injective1 : forall {k1 k2} (ec : elem_context_kinded k1 k2) {t0 t1},
       ec:[t0] = ec:[t1] -> t0 = t1.
 
@@ -236,14 +216,6 @@ Module Lam_SES_NO_PreRefSem <: PRE_REF_SEM.
     solve
     [ inversion H; trivial ].
   Qed.
-
-
-  Fixpoint plug t {k1 k2} (c : context k1 k2) : term :=
-      match c with
-      | [.]    => t 
-      | ec=:c' => plug ec:[t] c'
-      end.
-  Notation "c [ t ]" := (plug t c) (at level 0).
 
 
   (* Here we define what it means that an elementary context ec is a prefix of a term t. *) 

@@ -1,3 +1,4 @@
+Require Import path.
 
 Module Type RED_STRATEGY_LANG.
 
@@ -16,29 +17,10 @@ Module Type RED_STRATEGY_LANG.
   Coercion  value_to_term : value >-> term.
   Coercion  redex_to_term : redex >-> term.
 
+  Definition context : ckind -> ckind -> Type := path elem_context_kinded.
 
-  Inductive context (k1 : ckind) : ckind -> Type :=
-  | empty : context k1 k1
-  | ccons :                                                                forall {k2 k3}
-            (ec : elem_context_kinded k2 k3), context k1 k2 -> context k1 k3.
-  Arguments empty {k1}. Arguments ccons {k1} {k2} {k3} _ _.
-  Notation "[.]"      := empty.
-  Notation "[.]( k )" := (@empty k).
-  Infix    "=:"       := ccons (at level 60, right associativity).
-
-  Fixpoint compose {k1 k2} (c0 : context k1 k2) 
-                      {k3} (c1 : context k3 k1) : context k3 k2 := 
-      match c0 in context _ k2' return context k3 k2' with
-      | [.]     => c1
-      | ec=:c0' => ec =: compose c0' c1
-      end.
-  Infix "~+" := compose (at level 60, right associativity).
-
-  Fixpoint plug (t : term) {k1 k2} (c : context k1 k2) : term :=
-      match c with
-      | [.]    => t 
-      | ec=:c' => plug ec:[t] c'
-      end.
+  Definition plug t {k1 k2} (c : context k1 k2) : term :=
+    path_action (@elem_plug) t c.
   Notation "c [ t ]" := (plug t c) (at level 0).
 
   Definition immediate_ec {k0 k1} (ec : elem_context_kinded k0 k1) t :=

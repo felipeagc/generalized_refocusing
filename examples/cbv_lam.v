@@ -1,9 +1,8 @@
-(* Lambda calculus with left-to-right call-by-value  reduction strategy *)
+(* Lambda calculus with left-to-right call-by-value reduction strategy *)
 
 Require Import Program
                Util
                refocusing_semantics.
-
 
 (* Here we define the reduction semantics. *)
 (* The module type PRE_REF_SEM is defined in  the file refocusing/refocusing_semantics.v *)
@@ -160,35 +159,11 @@ Module Lam_cbv_PreRefSem <: PRE_REF_SEM.
   (* context, the second is the kind of the hole. *)
   (* We use the inside-out representation of contexts, so the topmost symbol on the stack *)
   (* is the elementary context that is closest to the hole. *)
-  Inductive context (k1 : ckind) : ckind -> Type :=
-  | empty : context k1 k1
-  | ccons :                                                                forall {k2 k3}
-            (ec : elem_context_kinded k2 k3), context k1 k2 -> context k1 k3.
-  Arguments empty {k1}. Arguments ccons {k1 k2 k3} _ _.
-
-  Notation "[.]"      := empty.
-  Notation "[.]( k )" := (@empty k).
-  Infix "=:"          := ccons (at level 60, right associativity).
-
-
-  (* Contexts may be composed (i.e., nested). *)
-  (* The first parameter is the internal context, the second is external. *) 
-  Fixpoint compose {k1 k2} (c0 : context k1 k2) 
-                      {k3} (c1 : context k3 k1) : context k3 k2 := 
-      match c0 in context _ k2' return context k3 k2' with
-      | [.]     => c1
-      | ec=:c0' => ec =: compose c0' c1
-      end.
-  Infix "~+" := compose (at level 60, right associativity).
-
-
+  Definition context : ckind -> ckind -> Type := path elem_context_kinded.
 
   (* The function for plugging a term into an arbitrary context *)
-  Fixpoint plug t {k1 k2} (c : context k1 k2) : term :=
-      match c with
-      | [.]    => t 
-      | ec=:c' => plug ec:[t] c'
-      end.
+  Definition plug t {k1 k2} (c : context k1 k2) : term :=
+    path_action (@elem_plug) t c.
   Notation "c [ t ]" := (plug t c) (at level 0).
 
   (* Here we define what it means that an elementary context ec is a prefix of a term t. *) 

@@ -86,7 +86,7 @@ Module Type REF_EVAL_APPLY_MACHINE (R : RED_REF_SEM) <: DET_ABSTRACT_MACHINE.
             | ed_val v     => Some (c_apply c v)
             | ed_dec _ t ec => Some (c_eval t (ec=:c))
              end
-      | c_apply (@ccons _ _ _ ec c) v => 
+      | c_apply (pcons ec c) v =>
             match dec_context ec v with
             | ed_red r     => option_map (fun t' => c_eval t' c) (contract r)
             | ed_val v     => Some (c_apply c v)
@@ -387,7 +387,7 @@ Module RefEvalApplyMachine (R : RED_REF_SEM) <: REF_EVAL_APPLY_MACHINE R.
             | ed_val v     => Some (c_apply c v)
             | ed_dec _ t ec => Some (c_eval t (ec=:c))
              end
-      | c_apply (@ccons _ _ _ ec c) v => 
+      | c_apply (pcons ec c) v =>
             match dec_context ec v with
             | ed_red r     => option_map (fun t' => c_eval t' c) (contract r)
             | ed_val v     => Some (c_apply c v)

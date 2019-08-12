@@ -1,6 +1,7 @@
 Require Import Util.
 Require Import Program.
 Require Import Eqdep.
+Require Import path.
 
 
 
@@ -17,33 +18,16 @@ Module Type RED_MINI_LANG.
   (value_to_term : forall {k}, value k -> term)
   (redex_to_term : forall {k}, redex k -> term).
 
+  Notation "[.]( k )" := (@empty _ elem_context_kinded k).
+
   Notation "ec :[ t ]" := (elem_plug t ec) (at level 0).
   Coercion  value_to_term : value >-> term.
   Coercion  redex_to_term : redex >-> term.
 
+  Definition context : ckind -> ckind -> Type := path elem_context_kinded.
 
-  Inductive context (k1 : ckind) : ckind -> Type :=
-  | empty : context k1 k1
-  | ccons :                                                                forall {k2 k3}
-            (ec : elem_context_kinded k2 k3), context k1 k2 -> context k1 k3.
-  Arguments empty {k1}. Arguments ccons {k1} {k2} {k3} _ _.
-  Notation "[.]"      := empty.
-  Notation "[.]( k )" := (@empty k).
-  Infix    "=:"       := ccons (at level 60, right associativity).
-
-  Fixpoint compose {k1 k2} (c0 : context k1 k2) 
-                      {k3} (c1 : context k3 k1) : context k3 k2 := 
-      match c0 in context _ k2' return context k3 k2' with
-      | [.]     => c1
-      | ec=:c0' => ec =: compose c0' c1
-      end.
-  Infix "~+" := compose (at level 60, right associativity).
-
-  Fixpoint plug (t : term) {k1 k2} (c : context k1 k2) : term :=
-      match c with
-      | [.]    => t 
-      | ec=:c' => plug ec:[t] c'
-      end.
+  Definition plug t {k1 k2} (c : context k1 k2) : term :=
+    path_action (@elem_plug) t c.
   Notation "c [ t ]" := (plug t c) (at level 0).
 
 
@@ -55,164 +39,16 @@ Module Type RED_MINI_LANG.
 End RED_MINI_LANG.
 
 
-
-
-
 Module RED_LANG_Facts (R : RED_MINI_LANG).
 
   Import R.
 
+  Definition plug_empty : forall t k, [.](k)[t] = t :=
+    @action_empty _ _ _ (@elem_plug).
 
-  (* Contexts *)
-
-  Lemma ccons_inj :                                    forall {k1 k2} (c : context k1 k2)
-                                                {k2' k3} (ec : elem_context_kinded k2 k3)
-                                (ec' : elem_context_kinded k2' k3) (c' : context k1 k2'),
-
-          ec=:c ~= ec'=:c' ->
-          JMeq ec ec' /\ k2 = k2' /\ c ~= c'.
-
-  Proof.
-    intros.
-    assert (H1 := JMeq_eq_depT _ _ _ _ _ (refl_equal _) H).
-    assert (H2 := eq_dep_eq_sigT _ _ _ _ _ _ H1). 
-    inversion H2; subst.
-    dep_subst.
-    auto.
-  Qed.
-
-
-  Ltac inversion_ccons H :=
-
-      match type of H with ?ec1 =: ?c1  ~=  ?ec2 =: ?c2 => 
-
-      let H0 := fresh in 
-      assert (H0 : eq_dep _ _ _ (ec1=:c1) _ (ec2=:c2));
-
-      [ apply JMeq_eq_depT; eauto
-
-      | inversion H0; dep_subst; clear H0 ]
-
-      end.
-
-
-  Lemma plug_empty : forall t k, [.](k)[t] = t.
-  Proof. intuition. Qed.
-
-
-  Lemma compose_empty : forall {k1 k2} (c : context k1 k2), c = c ~+ [.].
-  Proof.
-    induction c.
-    - trivial.
-    - simpl; rewrite <- IHc; trivial.
-  Qed.
-
-
-  Lemma plug_compose  : 
-      forall {k1 k2 k3} (c0 : context k1 k2) (c1 : context k3 k1) t, 
-          (c0 ~+ c1)[t] = c1[c0[t]].
-  Proof.
-    induction c0; intros.
-    - auto.
-    - apply IHc0.
-  Qed.
-
-  Lemma context_cons_snoc :                                            forall {k1 k2 k3},
-
-      forall (c0 : context k1 k2) (ec0 : elem_context_kinded k2 k3), 
-          exists {k4} (ec1 : elem_context_kinded k1 k4) (c1 : context k4 k3), 
-              (ec0=:c0) = (c1~+ec1=:[.]).
-
-  Proof.
-    intros k1 k2 k3 c0; revert k3.
-    induction c0; intros.
-    - exists k3; exists ec0; eexists [.]; trivial.
-    - edestruct IHc0 with k3 ec as (k4, (ec1, (c1, IH))).
-    rewrite IH; exists k4; exists ec1; exists (ec0 =: c1); trivial.
-  Qed.
-
-
-
-  Lemma mid_ccons_as_append :                   forall {k1 k2 k3 k4} (c1 : context k1 k2)
-                                   (ec : elem_context_kinded k2 k3) (c2 : context k3 k4),
-
-      c2 ~+ ec =: c1  =  c2 ~+ (ec =: [.]) ~+ c1.
-
-  Proof.
-    intros k1 k2 k3 k4 c1 ec c2.
-    induction c2;
-    solve [ auto ].
-  Qed.
-
-
-  Lemma append_assoc :      forall {k4 k3} (c1 : context k3 k4) {k2} (c2 : context k2 k3)
-                                                               {k1} (c3 : context k1 k2),
-      c1 ~+ c2 ~+ c3 = (c1 ~+ c2) ~+ c3.
-
-  Proof.
-    induction c1; intros; 
-    solve [simpl; f_equal; eauto].
-  Qed.
-
-
-  Lemma ccons_append_empty_self_JM :                                   forall {k1 k2 k3},
-
-      forall (c1 : context k1 k2) (c2 : context k2 k3), 
-          k2 = k3 -> c1 ~= c2 ~+ c1 -> c2 ~= [.](k2).
-
-  Proof with eauto.
-    intros k1 k2 k3 c1; revert k3.
-    induction c1 as [ | k k' ec c1]; 
-        intros k3 c2 H H0;
-        destruct c2 as [ | k0 k0' ec0 c2]...
-    - discriminateJM H0.
-    - exfalso.
-      simpl in H0.
-
-(* MODIFIED: unfolded inversion_ccons H0 *)
-match type of H0 with ?ec1 =: ?c1  ~=  ?ec2 =: ?c2 => 
-
-      let H1 := fresh in 
-      assert (H1 : eq_dep _ _ _ (ec1=:c1) _ (ec2=:c2));
-      [ apply JMeq_eq_depT; eauto
-
-      | inversion H1 ] end.
-dependent_destruction2 H8.
-clear H1.
-rename ec0 into ec.
-(* END inversion_ccons H0.*)
-      assert (H1 : c2 ~+ ec =: [.](k0) ~= [.](k0)). 
-      {
-          eapply IHc1...
-          rewrite <- append_assoc. 
-          rewrite <- (mid_ccons_as_append c1 ec c2).
-          replace (c2 ~+ ec =: c1) with c1 by auto.
-          reflexivity.
-      }
-      revert H1; clear; revert c2.
-      cut (forall k (c : context k0' k), 
-               k = k0 -> ~ (c ~+ ec =: [.](k0) ~= [.](k0))).
-      { intros H c2 H1; eapply H... }
-      intros k c G H.
-      destruct c; 
-      discriminateJM H.
-  Qed.
-
-
-  Lemma ccons_append_empty_self :                     forall {k1 k2} (c1 : context k1 k2)
-                                                                    (c2 : context k2 k2),
-      c1 = c2 ~+ c1 -> c2 = [.](k2).
-
-  Proof with eauto. 
-    intros k1 k2 c1 c2 H.
-    cut (c2 ~= [.](k2)).
-    { intro H0; rewrite H0... }
-    eapply ccons_append_empty_self_JM with c1...
-    rewrite <- H.
-    reflexivity.
-  Qed.
-
-
+  Definition plug_compose : forall {k1 k2 k3} (c0 : context k1 k2) (c1 : context k3 k1) t,
+          (c0 ~+ c1)[t] = c1[c0[t]] :=
+    @action_compose _ _ _ (@elem_plug).
 
   (* Values *)
 
@@ -357,7 +193,7 @@ Module RedDecProcEqvDec (R : RED_MINI_LANG_WD).
     intros ? ? ? c d.
     split; intro H.
     - apply dec_proc_correct...
-    - rewrite (compose_empty c).
+    - rewrite (compose_empty _ _ c).
       apply dec_proc_plug...
       rewrite H.
       destruct d.

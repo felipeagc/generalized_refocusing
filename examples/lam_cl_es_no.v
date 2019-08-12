@@ -191,15 +191,11 @@ Module Lam_ClES_NO_PreRefSem <: PRE_REF_SEM.
   Qed.*)
 
 
-  Inductive context (k1 : ckind) : ckind -> Type :=
-  | empty : context k1 k1
-  | ccons :                                                                forall {k2 k3}
-            (ec : elem_context_kinded k2 k3), context k1 k2 -> context k1 k3.
-  Arguments empty {k1}. Arguments ccons {k1 k2 k3} _ _.
+  Definition context : ckind -> ckind -> Type := path elem_context_kinded.
 
-  Notation "[.]"      := empty.
-  Notation "[.]( k )" := (@empty k).
-  Infix    "=:"       := ccons (at level 60, right associativity).
+  Definition plug t {k1 k2} (c : context k1 k2) : term :=
+    path_action (@elem_plug) t c.
+  Notation "c [ t ]" := (plug t c) (at level 0).
 
 
   Lemma term0_to_term_injective : 
@@ -282,15 +278,6 @@ destruct t1, t2; destruct n0, n; autof ].
   Qed.
 
 
-  Fixpoint compose {k1 k2} (c0 : context k1 k2) 
-                      {k3} (c1 : context k3 k1) : context k3 k2 := 
-      match c0 in context _ k2' return context k3 k2' with
-      | [.]     => c1
-      | ec=:c0' => ec =: compose c0' c1
-      end.
-  Infix "~+" := compose (at level 60, right associativity).
-
-
   Lemma elem_plug_injective1 : forall {k1 k2} (ec : elem_context_kinded k1 k2) {t0 t1},
       ec:[t0] = ec:[t1] -> t0 = t1.
 
@@ -300,14 +287,6 @@ destruct t1, t2; destruct n0, n; autof ].
     solve
     [ inversion H; trivial ].
   Qed.
-
-
-  Fixpoint plug t {k1 k2} (c : context k1 k2) : term :=
-      match c with
-      | [.]    => t 
-      | ec=:c' => plug ec:[t] c'
-      end.
-  Notation "c [ t ]" := (plug t c) (at level 0).
 
 
   Definition immediate_ec {k1 k2} (ec : elem_context_kinded k1 k2) t := 
