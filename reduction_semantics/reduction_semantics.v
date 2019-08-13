@@ -3,13 +3,7 @@ Require Import Relations
                Program.
 Require Export rewriting_system path.
 
-
-
-
-(* A signature that formalizes a reduction semantics *)
-
-Module Type RED_SEM.
-
+Module Type RED_SEM_BASE.
   Parameters
   (term          : Type) (* the language *)
   (ckind         : Type) (* the set of reduction/context kinds *)
@@ -40,6 +34,9 @@ Module Type RED_SEM.
                         (* contexts *)
   (contract      : forall {k}, redex k -> option term).
                         (* the contraction relations per each reduction kind *)
+End RED_SEM_BASE.
+
+Module RED_SEM_BASE_Notions (Import B : RED_SEM_BASE).
 
   Notation "ec :[ t ]" := (elem_plug t ec) (at level 0).
   Coercion  value_to_term : value >-> term.
@@ -64,6 +61,9 @@ Module Type RED_SEM.
   Definition immediate_ec {k0 k1} (ec : elem_context_kinded k0 k1) t := 
       exists t', ec:[t'] = t.
 
+  Definition immediate_subterm t0 t := exists k1 k2 (ec : elem_context_kinded k1 k2),
+      t = ec:[t0].
+  Definition subterm_order          := clos_trans_1n term immediate_subterm.
 
   (* Decomposition of a term is a pair consisting of a reduction context and *)
   (* a potential redex. Values have no decomposition; we just report that *)
@@ -100,6 +100,23 @@ Module Type RED_SEM.
   Instance rws : REWRITING_SYSTEM term :=
   { transition := reduce init_ckind }.
 
+  (* Again some technicalities *)
+  Class SafeKRegion (k : ckind) (P : term -> Prop) :=
+  {
+      preservation :                                                        forall t1 t2,
+          P t1  ->  k |~ t1 → t2  ->  P t2;
+      progress :                                                               forall t1,
+          P t1  ->  (exists (v : value k), t1 = v) \/ (exists t2, k |~ t1 → t2)
+  }.
+
+End RED_SEM_BASE_Notions.
+
+(* A signature that formalizes a reduction semantics *)
+
+Module Type RED_SEM.
+
+  Include RED_SEM_BASE.
+  Include RED_SEM_BASE_Notions.
 
   Axioms
 
@@ -129,16 +146,6 @@ Module Type RED_SEM.
   (* Each term (t) can be decomposed wrt. to each substrategy (k) *)
   (decompose_total :                                                          forall k t,
        exists d : decomp k, dec t k d).
-
-
-  (* Again some technicalities *)
-  Class SafeKRegion (k : ckind) (P : term -> Prop) :=
-  {
-      preservation :                                                        forall t1 t2,
-          P t1  ->  k |~ t1 → t2  ->  P t2;
-      progress :                                                               forall t1,
-          P t1  ->  (exists (v : value k), t1 = v) \/ (exists t2, k |~ t1 → t2)
-  }.
 
 End RED_SEM.
 

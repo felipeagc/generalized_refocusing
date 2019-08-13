@@ -1,45 +1,13 @@
-Require Import path.
+Require Import path
+               reduction_semantics.
 
 Module Type RED_STRATEGY_LANG.
 
- Parameters 
-  (term         : Type)
-  (ckind        : Type)
-  (elem_context_kinded : ckind -> ckind -> Type)
-  (elem_plug     : forall {k0 k1}, term -> elem_context_kinded k0 k1 -> term)
-  (redex         : ckind -> Type)
-  (value         : ckind -> Type)
-  (init_ckind : ckind)
-  (value_to_term : forall {k}, value k -> term)
-  (redex_to_term : forall {k}, redex k -> term).
+  Include RED_SEM_BASE.
 
   Notation "ec :[ t ]" := (elem_plug t ec) (at level 0).
   Coercion  value_to_term : value >-> term.
   Coercion  redex_to_term : redex >-> term.
-
-  Definition context : ckind -> ckind -> Type := path elem_context_kinded.
-
-  Definition plug t {k1 k2} (c : context k1 k2) : term :=
-    path_action (@elem_plug) t c.
-  Notation "c [ t ]" := (plug t c) (at level 0).
-
-  Definition immediate_ec {k0 k1} (ec : elem_context_kinded k0 k1) t :=
-      exists t', ec:[t'] = t.
-
-  Inductive decomp k : Type :=
-  | d_red : forall {k'}, redex k' -> context k k' -> decomp k
-  | d_val : value k -> decomp k.
-  Arguments d_val {k} _. Arguments d_red {k} {k'} _ _.
-
-  Definition decomp_to_term {k} (d : decomp k) :=
-      match d with
-      | d_val v   => value_to_term v
-      | d_red r c => c[r]
-      end.
-  Coercion decomp_to_term : decomp >-> term.
-
-  Definition dec (t : term) k (d : decomp k) : Prop := 
-      t = d.
 
   Axioms
   (value_to_term_injective :                                 forall {k} (v v' : value k),
@@ -105,9 +73,7 @@ End RED_STRATEGY_STEP.
 
 
 
-Module Type RED_STRATEGY (R : RED_STRATEGY_LANG).
-
-  Import R.
+Module Type RED_STRATEGY (Import R : RED_STRATEGY_LANG).
 
   Include RED_STRATEGY_STEP R.
 

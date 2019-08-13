@@ -15,38 +15,13 @@ Require Export reduction_semantics
 Module Type PRE_REF_SEM <: RED_STRATEGY_LANG.
 
   Include RED_STRATEGY_LANG.
-
-
-  Parameter contract : forall {k}, redex k -> option term.
-
-  Definition immediate_subterm t0 t := exists k1 k2 (ec : elem_context_kinded k1 k2),
-      t = ec:[t0].
-  Definition subterm_order          := clos_trans_1n term immediate_subterm.
-  Definition reduce k t1 t2 := 
-      exists {k'} (c : context k k') (r : redex k') t,  dec t1 k (d_red r c) /\
-          contract r = Some t /\ t2 = c[t].
-
-  Instance lrws : LABELED_REWRITING_SYSTEM ckind term :=
-  { ltransition := reduce }. 
-  Instance rws : REWRITING_SYSTEM term := 
-  { transition := reduce init_ckind }.
-
-  (*Notation "t1 <| t2"  := (subterm_order t1 t2)      (no associativity, at level 70).*)
+  Include RED_SEM_BASE_Notions.
 
   Axioms
   (redex_trivial1 :        forall {k k'} (r : redex k) (ec : elem_context_kinded k k') t,
        ec:[t] = r -> exists (v : value k'), t = v)
   (wf_immediate_subterm : well_founded immediate_subterm)
   (wf_subterm_order     : well_founded subterm_order).
-
-
-  Class SafeKRegion (k : ckind) (P : term -> Prop) :=
-  {
-      preservation :                                                        forall t1 t2,
-          P t1  ->  k |~ t1 → t2  ->  P t2;
-      progress :                                                               forall t1,
-          P t1  ->  (exists (v : value k), t1 = v) \/ (exists t2, k |~ t1 → t2)
-  }.
 
 End PRE_REF_SEM.
 

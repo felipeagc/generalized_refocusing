@@ -26,7 +26,6 @@ Module Addition_PreRefSem <: PRE_REF_SEM.
     match v with
     | Value n => Const n
     end.
-  Coercion value_to_term : value >-> term.
 
   Inductive red : ckind -> Type :=
   | Addition : value () -> value () -> red ().
@@ -35,9 +34,8 @@ Module Addition_PreRefSem <: PRE_REF_SEM.
 
   Definition redex_to_term {k} (r : redex k) : term :=
     match r with
-    | Addition n m => Plus (n: term) (m: term)
+    | Addition n m => Plus (value_to_term n) (value_to_term m)
     end.
-  Coercion redex_to_term : redex >-> term.
 
   Lemma value_to_term_injective :
       forall {k} (v v' : value k), value_to_term v = value_to_term v' -> v = v'.
@@ -72,7 +70,7 @@ Module Addition_PreRefSem <: PRE_REF_SEM.
   Definition elem_plug {k1 k2} (t : term) (ec : elem_context_kinded k1 k2) : term :=
     match ec with
     | left_hole t' => Plus t t'
-    | right_hole v => Plus (v: term) t
+    | right_hole v => Plus (value_to_term v) t
     end.
   Notation "ec :[ t ]" := (elem_plug t ec) (at level 0).
 
@@ -84,64 +82,19 @@ Module Addition_PreRefSem <: PRE_REF_SEM.
     inversion H; trivial.
   Qed.
 
-  Definition context : ckind -> ckind -> Type := path elem_context_kinded.
-
-  Definition plug t {k1 k2} (c : context k1 k2) : term :=
-    path_action (@elem_plug) t c.
-  Notation "c [ t ]" := (plug t c) (at level 0).
-
-  Definition immediate_ec {k1 k2} (ec : elem_context_kinded k1 k2) t :=
-    exists t', ec:[t'] = t.
-
-  Definition immediate_subterm t0 t := exists k1 k2 (ec : elem_context_kinded k1 k2),
-    t = ec:[t0].
-
-  Lemma wf_immediate_subterm: well_founded immediate_subterm.
-  Proof.    REF_LANG_Help.prove_st_wf.
-  Qed.
-
   Definition contract {k} (r : redex k) : option term :=
     match r with
     | Addition (Value n) (Value m) => Some (Const (n + m))
     end.
 
-  Inductive decomp k : Type :=
-  | d_red : forall {k'}, redex k' -> context k k' -> decomp k
-  | d_val : value k -> decomp k.
-  Arguments d_val {k} _. Arguments d_red {k} {k'} _ _.
+  Include RED_SEM_BASE_Notions.
 
-  Definition decomp_to_term {k} (d : decomp k) :=
-      match d with
-    | d_val v   => v
-    | d_red r c => c[r]
-    end.
-  Coercion decomp_to_term : decomp >-> term.
-
-  Definition dec (t : term) k (d : decomp k) : Prop :=
-    t = d.
-
-  Definition subterm_order := clos_trans_1n term immediate_subterm.
-  Notation "t1 <| t2" := (subterm_order t1 t2) (at level 70, no associativity).
+  Lemma wf_immediate_subterm: well_founded immediate_subterm.
+  Proof.    REF_LANG_Help.prove_st_wf.
+  Qed.
 
   Definition wf_subterm_order : well_founded subterm_order
     := wf_clos_trans_l _ _ wf_immediate_subterm.
-
-  Definition reduce k t1 t2 : Prop :=
-    exists {k'} (c : context k k') (r : redex k') t,  dec t1 k (d_red r c) /\
-                                                      contract r = Some t /\ t2 = c[t].
-
-  Instance lrws : LABELED_REWRITING_SYSTEM ckind term :=
-    { ltransition := reduce }.
-  Instance rws : REWRITING_SYSTEM term :=
-    { transition := reduce init_ckind }.
-
-  Class SafeKRegion (k : ckind) (P : term -> Prop) :=
-    {
-      preservation :                                               forall t1 t2,
-        P t1  ->  k |~ t1 → t2  ->  P t2;
-      progress :                                                      forall t1,
-          P t1  ->  (exists (v : value k), t1 = v) \/ (exists t2, k |~ t1 → t2)
-    }.
 
   Lemma value_trivial1 :
     forall {k1 k2} (ec: elem_context_kinded k1 k2) t,
