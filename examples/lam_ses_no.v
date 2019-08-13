@@ -20,7 +20,7 @@ Module Lam_SES_NO_PreRefSem <: PRE_REF_SEM.
   (* Here we define the language of interest: lambda calculus. *)
   (* In Coq it is not possible to define parameter of a module *)
   (* as an inductive type, therefore we first define inductively *)
-  (* term' and only then we define terms as term'. *) 
+  (* term' and only then we define terms as term'. *)
 
   Inductive term' :=
   | Var   : nat                   -> term'
@@ -37,8 +37,8 @@ Module Lam_SES_NO_PreRefSem <: PRE_REF_SEM.
   have not only normal order, but also simple explicit substitutions,
   and thus we need the third nonterminal Dᵏ to traverse these
   substitutions *)
- 
-  Inductive ck := Eᵏ | Fᵏ | Dᵏ. 
+
+  Inductive ck := Eᵏ | Fᵏ | Dᵏ.
   Definition ckind := ck.
   Hint Unfold ckind.
 
@@ -54,7 +54,7 @@ Module Lam_SES_NO_PreRefSem <: PRE_REF_SEM.
 
   (* Now we define (for each context kind) the set of values. *)
   (* For technical reasons we have to use fresh constructors; later we will *)
-  (* use a coercion to identify values with the corresponding lambda terms. *)  
+  (* use a coercion to identify values with the corresponding lambda terms. *)
 
   Inductive val : ckind -> Set :=
 
@@ -103,16 +103,16 @@ Module Lam_SES_NO_PreRefSem <: PRE_REF_SEM.
       end.
 
   Coercion value_to_term : value >-> term.
-  Coercion valCa_to_term : valCa >-> term. 
+  Coercion valCa_to_term : valCa >-> term.
 
 
-  Definition vVar n k : value k := 
-      match k with 
+  Definition vVar n k : value k :=
+      match k with
       | Eᵏ => vEVar n | Fᵏ => vFVar n | Dᵏ => vDVar n
       end.
 
 
-  Inductive esubstitute :=                 (* explicit substitutions: substitute and shift *)  
+  Inductive esubstitute :=                 (* explicit substitutions: substitute and shift *)
   | st_sub   : term -> esubstitute
   | st_shift : nat  -> esubstitute.
   Definition esub := (nat * esubstitute)                                           %type.
@@ -131,12 +131,12 @@ Module Lam_SES_NO_PreRefSem <: PRE_REF_SEM.
   (* There are also a trivial productions such as  Eᵏ -> [] which are omitted here. *)
   (* The first parameter of eck is the nonterminal on the left-hand side; *)
   (* the second parameter is the kind of the hole, i.e., the (unique) nonterminal *)
-  (* occurring on the right-hand side of a production. *) 
+  (* occurring on the right-hand side of a production. *)
 
   Inductive eck : ckind -> ckind -> Set :=
   | lam_c  : eck Eᵏ Eᵏ                                             (* E -> \lambda E *)
-  | ap_r   : forall k : EF_kind, term  -> eck k Fᵏ     (* E -> F e ; F -> F e *) 
-  | ap_l   : forall k : EF_kind, valCa -> eck k Eᵏ     (* E -> a E ; F -> a E *) 
+  | ap_r   : forall k : EF_kind, term  -> eck k Fᵏ     (* E -> F e ; F -> F e *)
+  | ap_l   : forall k : EF_kind, valCa -> eck k Eᵏ     (* E -> a E ; F -> a E *)
   | esub_c : forall k : ckind,   esub  -> eck k Dᵏ.    (* E -> esub D ; F -> esub D; D -> esub D *)
   Definition elem_context_kinded : ckind -> ckind -> Type := eck.
   Hint Unfold elem_context_kinded.
@@ -152,13 +152,7 @@ Module Lam_SES_NO_PreRefSem <: PRE_REF_SEM.
       end.
   Notation "ec :[ t ]" := (elem_plug t ec) (at level 0).
 
-  Definition context : ckind -> ckind -> Type := path elem_context_kinded.
-
-  Definition plug t {k1 k2} (c : context k1 k2) : term :=
-    path_action (@elem_plug) t c.
-  Notation "c [ t ]" := (plug t c) (at level 0).
-
-  (* Again we use a coercion to identify redices with the corresponding lambda terms. *)  
+  (* Again we use a coercion to identify redices with the corresponding lambda terms. *)
   Definition redex_to_term {k} (r : redex k) : term :=
       match r with
       | rEApp t1 t2   => App (Lam t1) t2
@@ -167,10 +161,28 @@ Module Lam_SES_NO_PreRefSem <: PRE_REF_SEM.
       | rSubLam k' t d     => (esub_c k' d):[Lam t]
       | rSubApp k' t1 t2 d => (esub_c k' d):[App t1 t2]
       end.
-  Coercion redex_to_term : redex >-> term.
+
+  (* Here we define the contraction.  *)
+  Definition contract0 {k} (r : redex k) : term :=
+      match r with
+      | rEApp   t0 t1 => Sub t0 0 t1
+                 (*  in the E-substrategy the application  (t0 t1) reduces  to  t0[0->t1] *)
+      | rFApp t0 t1 => Sub t0 0 t1
+      | rSubVar _ i  (j, st_sub t)   => if lt_dec i j     then Var i else    (* i[j->t] ==> i *)
+                                        if eq_nat_dec i j then Shift t 0 j               (* i[i->t] ==> t[0 v i] *)
+                                                          else Var (pred i)                     (* i[j->t] ==> j-1 *)
+      | rSubVar _ i  (j, st_shift g) => if lt_dec i j     then Var i
+                                                          else Var (i+g)
+      | rSubLam _ t  (j, d)          => Lam ((esub_c Eᵏ (S j, d)):[t])    (* substitution pushed under lambda  *)
+      | rSubApp _ t1 t2 d            => App (esub_c Fᵏ d):[t1] (esub_c Eᵏ d):[t2]   (* substitution pushed under application *)
+      end.
+  Definition contract {k} (r : redex k) := Some (contract0 r).
+
+  (* Having this we include some basic notions *)
+  Include RED_SEM_BASE_Notions.
 
   (* Some technicalities: it should be obvious that the two coercions are injective *)
-  (* This again is a required axiom in the signature of RED_SEM module *) 
+  (* This again is a required axiom in the signature of RED_SEM module *)
   Lemma value_to_term_injective :
       forall {k} (v v' : value k), value_to_term v = value_to_term v' -> v = v'.
 
@@ -182,25 +194,25 @@ Module Lam_SES_NO_PreRefSem <: PRE_REF_SEM.
   Qed.
 
 
-  Lemma valCa_to_term_injective : 
+  Lemma valCa_to_term_injective :
       forall v v', valCa_to_term v = valCa_to_term v' -> v = v'.
 
   Proof with auto.
-    induction v using valCa_Ind with 
+    induction v using valCa_Ind with
     (P  := fun k v => forall v' : value k, value_to_term v = value_to_term v' -> v = v')
     (P0 := fun v   => forall v' : valCa,   valCa_to_term v = valCa_to_term v' -> v = v');
     dependent destruction v'; intro H; inversion H; f_equal...
   Qed.
 
 
-  Lemma redex_to_term_injective : 
+  Lemma redex_to_term_injective :
       forall {k} (r r' : redex k), redex_to_term r = redex_to_term r' -> r = r'.
 
   Proof with auto.
     intros k r r' H.
     destruct k;
-    dependent destruction r; dependent destruction r'; 
-    destruct_all esub; destruct_all esubstitute; 
+    dependent destruction r; dependent destruction r';
+    destruct_all esub; destruct_all esubstitute;
     inversion H; subst;
     f_equal.
   Qed.
@@ -218,11 +230,6 @@ Module Lam_SES_NO_PreRefSem <: PRE_REF_SEM.
   Qed.
 
 
-  (* Here we define what it means that an elementary context ec is a prefix of a term t. *) 
-  Definition immediate_ec {k1 k2} (ec : elem_context_kinded k1 k2) t :=
-      exists t', ec:[t'] = t.
-
-
   Lemma valCa_is_valECa :
       forall v1 : valCa, exists v2 : value Fᵏ, valCa_to_term v1 = value_to_term v2.
 
@@ -231,22 +238,6 @@ Module Lam_SES_NO_PreRefSem <: PRE_REF_SEM.
     - exists (vFVar n)...
     - exists (vFApp v1 v)...
   Qed.
-
-  (* Here we define the contraction.  *)
-  Definition contract0 {k} (r : redex k) : term := 
-      match r with
-      | rEApp   t0 t1 => Sub t0 0 t1               
-                 (*  in the E-substrategy the application  (t0 t1) reduces  to  t0[0->t1] *)
-      | rFApp t0 t1 => Sub t0 0 t1
-      | rSubVar _ i  (j, st_sub t)   => if lt_dec i j     then Var i else    (* i[j->t] ==> i *)
-                                        if eq_nat_dec i j then Shift t 0 j               (* i[i->t] ==> t[0 v i] *)
-                                                          else Var (pred i)                     (* i[j->t] ==> j-1 *)
-      | rSubVar _ i  (j, st_shift g) => if lt_dec i j     then Var i
-                                                          else Var (i+g)
-      | rSubLam _ t  (j, d)          => Lam ((esub_c Eᵏ (S j, d)):[t])    (* substitution pushed under lambda  *)
-      | rSubApp _ t1 t2 d            => App (esub_c Fᵏ d):[t1] (esub_c Eᵏ d):[t2]   (* substitution pushed under application *)
-      end.
-  Definition contract {k} (r : redex k) := Some (contract0 r).
 
   (* Decomposition of a value cannot give a potential redex, it must give a value. *)
   Lemma value_trivial1 :
@@ -267,15 +258,15 @@ Module Lam_SES_NO_PreRefSem <: PRE_REF_SEM.
 
 
   (* A value is not a redex. *)
-  Lemma value_redex : forall {k} (v : value k) (r : redex k), 
+  Lemma value_redex : forall {k} (v : value k) (r : redex k),
                           value_to_term v <> redex_to_term r.
 
   Proof.
     intros k v r.
 
-    dependent destruction r; dependent destruction v; 
+    dependent destruction r; dependent destruction v;
     simpl;
-    try match goal with 
+    try match goal with
     | |- App (valCa_to_term ?v) _ <> _ => dependent_destruction2 v
     end;
     destruct_all esub; destruct_all esubstitute;
@@ -294,7 +285,7 @@ Module Lam_SES_NO_PreRefSem <: PRE_REF_SEM.
     subst;
     try discriminate;
     inversion H;
-    try solve 
+    try solve
     [ eexists (vFLam _); simpl; eauto
     | eexists (vELam _); simpl; eauto
     | eexists (vDLam _); simpl; eauto
@@ -306,29 +297,6 @@ Module Lam_SES_NO_PreRefSem <: PRE_REF_SEM.
     | eexists (vDVar _); simpl; eauto
     | match goal with v: valCa |- _ => destruct v; discriminate end ].
   Qed.
-
-  (* Decomposition of a term is a pair consisting of a reduction context and a potential redex. *)
-  (* Values have no decomposition; we just report that the term is a value. *)
-  Inductive decomp k : Type :=
-  | d_red : forall {k'}, redex k' -> context k k' -> decomp k
-  | d_val : value k -> decomp k.
-  Arguments d_val {k} _. Arguments d_red {k} {k'} _ _.
-
-
-  Definition decomp_to_term {k} (d : decomp k) :=
-      match d with
-      | d_val v     => value_to_term v
-      | d_red r c => c[r]
-      end.
-  Coercion decomp_to_term : decomp >-> term.
-
-  (* Syntactic sugar: term t decomposes to decomposition d *)
-  Definition dec (t : term) k (d : decomp k) : Prop :=
-      t = d.
-
-  (* term t0 is an immediate subterm of a term t *) 
-  Definition immediate_subterm t0 t := exists k1 k2 (ec : elem_context_kinded k1 k2),
-      t = ec:[t0].
 
   (* The immediate subterm relation  is well-founded.  *)
   Lemma wf_immediate_subterm: well_founded immediate_subterm.
@@ -342,41 +310,15 @@ Module Lam_SES_NO_PreRefSem <: PRE_REF_SEM.
   Qed.
 
 
-  (* Subterm order is the transitive closure of the immediate_subterm relation. *)
-  Definition subterm_order := clos_trans_1n term immediate_subterm.
-  Notation "t1 <| t2" := (subterm_order t1 t2) (at level 70, no associativity).
-
   (* Subterm order is a well-founded relation. *)
   Definition wf_subterm_order : well_founded subterm_order
       := wf_clos_trans_l _ _ wf_immediate_subterm.
-
-  (* Here we define the reduction relation. Term t1 reduces to t2 wrt. k-strategy *)
-  (* if t1 decomposes to c[r] and r rewrites (wrt. k-contraction) to t and t2=c[t]. *)
-  Definition reduce k t1 t2 := 
-      exists {k'} (c : context k k') (r : redex k') t,  dec t1 k (d_red r c) /\
-          contract r = Some t /\ t2 = c[t].
-
-  (* Reduction relation gives an instance of a rewriting system *) 
-  Instance lrws : LABELED_REWRITING_SYSTEM ckind term :=
-  { ltransition := reduce }. 
-  Instance rws : REWRITING_SYSTEM term := 
-  { transition := reduce init_ckind }.
-
-
-  (* Some technicalities required by the module *)
-  Class SafeKRegion (k : ckind) (P : term -> Prop) :=
-  { 
-      preservation :                                                        forall t1 t2,
-          P t1  ->  k |~ t1 → t2  ->  P t2;
-      progress :                                                               forall t1,
-          P t1  ->  (exists (v : value k), t1 = v) \/ (exists t2, k |~ t1 → t2)
-  }.
 
 End Lam_SES_NO_PreRefSem.
 
 
 
-(* Although a reduction semantics implicitly contains reduction strategy, our implementation 
+(* Although a reduction semantics implicitly contains reduction strategy, our implementation
    requires an explicit definition of this strategy. So now we define the reduction strategy.  *)
 
 
@@ -390,7 +332,7 @@ Module Lam_SES_NO_Strategy <: REF_STRATEGY Lam_SES_NO_PreRefSem.
   (* We start by defining the type returned by these functions. *)
   (* They return that the input term is either a redex (ed_red) *)
   (* or a value (ed_val) or that we have to continue searching  *)
-  (* inside a subterm (ed_dec) *)  
+  (* inside a subterm (ed_dec) *)
   Inductive elem_dec k : Type :=
   | ed_red  : redex k -> elem_dec k
   | ed_dec : forall k', term -> elem_context_kinded k k' -> elem_dec k
@@ -400,10 +342,10 @@ Module Lam_SES_NO_Strategy <: REF_STRATEGY Lam_SES_NO_PreRefSem.
 
 
   (* Here is the down-arrow function. *)
-  (* It is used to decompose a term.  *)  
+  (* It is used to decompose a term.  *)
   Definition dec_term (t : term) (k : ckind) : elem_dec k :=
 
-      match k as k0 return elem_dec k0 with 
+      match k as k0 return elem_dec k0 with
       | Eᵏ   => match t with
                 | App t1 t2 => ed_dec _ t1 (ap_r Eᵏ' t2)
                 | Var n     => ed_val (vEVar n)
@@ -440,18 +382,18 @@ Module Lam_SES_NO_Strategy <: REF_STRATEGY Lam_SES_NO_PreRefSem.
 
       | lam_c    => ed_val (vELam v)
 
-      | ap_r k t   =>  match k with    
-                          
-                       | Eᵏ' => match v with 
-                                | vFLam t0    => ed_red (rEApp t0 t)  
+      | ap_r k t   =>  match k with
+
+                       | Eᵏ' => match v with
+                                | vFLam t0    => ed_red (rEApp t0 t)
                                 | vFVar n     => ed_dec _ t (ap_l Eᵏ' (vEaVar n))
                                 | vFApp v1 v2 => ed_dec _ t (ap_l Eᵏ' (vEaApp v1 v2))
-                                end 
-                       | Fᵏ' => match v  with  
+                                end
+                       | Fᵏ' => match v  with
                                 | vFLam t0    => ed_red (rFApp t0 t)
                                 | vFVar n     => ed_dec _ t (ap_l Fᵏ' (vEaVar n))
                                 | vFApp v1 v2 => ed_dec _ t (ap_l Fᵏ' (vEaApp v1 v2))
-                                end 
+                                end
                        end
 
       | ap_l k0 v0  =>  match k0 with
@@ -466,7 +408,7 @@ Module Lam_SES_NO_Strategy <: REF_STRATEGY Lam_SES_NO_PreRefSem.
                         end
       end v.
 
-  Unfortunately, Coq is not able to infer equalities  like  k'=Eᵏ, and 
+  Unfortunately, Coq is not able to infer equalities  like  k'=Eᵏ, and
   we have to do some dirty tricks.  *)
 
 
@@ -478,15 +420,15 @@ Module Lam_SES_NO_Strategy <: REF_STRATEGY Lam_SES_NO_PreRefSem.
 
       | lam_c    => fun v => ed_val (vELam v)
 
-      | ap_r k t   => fun (v : value Fᵏ) => 
+      | ap_r k t   => fun (v : value Fᵏ) =>
                         match k as k return elem_dec k with
-                        | Eᵏ' => match v in val k0 return k0 = Fᵏ -> elem_dec Eᵏ with 
-                                 | vFLam t0    => fun _ => ed_red (rEApp t0 t) 
+                        | Eᵏ' => match v in val k0 return k0 = Fᵏ -> elem_dec Eᵏ with
+                                 | vFLam t0    => fun _ => ed_red (rEApp t0 t)
                                  | vFVar n     => fun _ => ed_dec _ t (ap_l Eᵏ' (vEaVar n))
                                  | vFApp v1 v2 => fun _ => ed_dec _ t (ap_l Eᵏ' (vEaApp v1 v2))
                                  | _ => _
                                  end eq_refl
-                        | Fᵏ' => match v in val k0 return k0 = Fᵏ -> elem_dec Fᵏ with   
+                        | Fᵏ' => match v in val k0 return k0 = Fᵏ -> elem_dec Fᵏ with
                                  | vFLam t0    => fun _ => ed_red (rFApp t0 t)
                                  | vFVar n     => fun _ => ed_dec _ t (ap_l Fᵏ' (vEaVar n))
                                  | vFApp v1 v2 => fun _ => ed_dec _ t (ap_l Fᵏ' (vEaApp v1 v2))
@@ -509,7 +451,7 @@ Module Lam_SES_NO_Strategy <: REF_STRATEGY Lam_SES_NO_PreRefSem.
 
   (* The decomposed term after the decomposition must be equal *)
   (* to itself before the decomposition. *)
-  Lemma dec_term_correct : 
+  Lemma dec_term_correct :
       forall (t : term) k, match dec_term t k with
       | ed_red r      => t = r
       | ed_val v      => t = v
@@ -517,7 +459,7 @@ Module Lam_SES_NO_Strategy <: REF_STRATEGY Lam_SES_NO_PreRefSem.
       end.
 
   Proof.
-    destruct k, t; simpl; 
+    destruct k, t; simpl;
     auto.
   Qed.
 
@@ -551,8 +493,8 @@ Module Lam_SES_NO_Strategy <: REF_STRATEGY Lam_SES_NO_PreRefSem.
       let (_, ec)  := ec  in
       let (_, ec0) := ec0 in
 
-      match ec, ec0 with 
-                    | ap_l _ _, ap_r _ _ => immediate_ec ec t /\ immediate_ec ec0 t 
+      match ec, ec0 with
+                    | ap_l _ _, ap_r _ _ => immediate_ec ec t /\ immediate_ec ec0 t
                     | _, _               => False
                     end.
 
@@ -627,10 +569,10 @@ Module Lam_SES_NO_Strategy <: REF_STRATEGY Lam_SES_NO_PreRefSem.
 
     try solve
     [ compute; eautof 7
-    | do 2 right; 
-      split; 
+    | do 2 right;
+      split;
     [ auto
-    | match goal with H : (valCa_to_term _) = (valCa_to_term _) |- _ => 
+    | match goal with H : (valCa_to_term _) = (valCa_to_term _) |- _ =>
       apply valCa_to_term_injective in H;
       subst;
       auto
@@ -639,7 +581,7 @@ Module Lam_SES_NO_Strategy <: REF_STRATEGY Lam_SES_NO_PreRefSem.
   Qed.
 
 
-  (* Only immediate prefixes are comparable in this order. *) 
+  (* Only immediate prefixes are comparable in this order. *)
   Lemma search_order_comp_fi :                                          forall t k k' k''
                       (ec0 : elem_context_kinded k k') (ec1 : elem_context_kinded k k''),
 
@@ -670,7 +612,7 @@ Module Lam_SES_NO_Strategy <: REF_STRATEGY Lam_SES_NO_PreRefSem.
 
 
   (* If the up-arrow function returns a redex, we have finished traversing the term. *)
-  (* There are no further redices, i.e., we have just returned from the minimal element. *) 
+  (* There are no further redices, i.e., we have just returned from the minimal element. *)
   Lemma dec_context_red_bot :                   forall k k' (v : value k') (r : redex k),
 
       forall (ec : elem_context_kinded k k'),
@@ -687,14 +629,14 @@ Module Lam_SES_NO_Strategy <: REF_STRATEGY Lam_SES_NO_PreRefSem.
       intro G;
       unfold search_order in G; destruct G as (G, _);
       destruct G as (t1, G); inversion G; subst;
-      destruct v0; 
+      destruct v0;
       autof ].
   Qed.
 
 
   (* The same for the case of a value: *)
   (* If the up-arrow function returns a value, we have finished traversing the term. *)
-  (* There are no further redices, i.e., we have just returned from the minimal element. *) 
+  (* There are no further redices, i.e., we have just returned from the minimal element. *)
   Lemma dec_context_val_bot :                               forall k k' v {v' : value k},
 
       forall (ec : elem_context_kinded k k'),
@@ -721,24 +663,24 @@ Module Lam_SES_NO_Strategy <: REF_STRATEGY Lam_SES_NO_PreRefSem.
     destruct ec0; dependent destruction ec1; dependent destruction v;
     destruct_all EF_kind; try discriminate;
     subst;
-    try solve 
+    try solve
     [ autof
 
     | inversion H; subst;
       split;
-      [ constructor; 
+      [ constructor;
         compute; eauto
-      | intros [? ec''] H0 H1; 
+      | intros [? ec''] H0 H1;
         dependent_destruction2 ec'';
         destruct_all EF_kind; try discriminate;
         subst;
-        solve [ autof ] 
+        solve [ autof ]
       ] ].
   Qed.
 
 
   (* If there are two overlapping elementary contexts in the same term, then the greater *)
-  (* of them contains no redices (it contains only values). *) 
+  (* of them contains no redices (it contains only values). *)
   Lemma elem_context_det :            forall k0 k1 k2 t (ec0 : elem_context_kinded k0 k1)
                                                        (ec1 : elem_context_kinded k0 k2),
 
@@ -783,7 +725,7 @@ lambda calculus with normal order and simple explicit
 substitutions. They use a different definition of evaluation contexts,
 in particular they use inside-out grammars of contexts (while we use
 outside-in grammars). Below we show that there is a direct
-correspondence between their and our contexts. *) 
+correspondence between their and our contexts. *)
 
 Module Lam_SES_NO_AlterContexts.
 
@@ -792,7 +734,7 @@ Module Lam_SES_NO_AlterContexts.
   Inductive ckind_IO := Aio | Cio | Dio.
 
 (* Here is the definition of their contexts *)
-  
+
   Inductive context_IO : ckind_IO -> Type :=
   | hole_io   : context_IO Aio
   | ap_l_io   : context_IO Cio -> valCa -> context_IO Aio
@@ -810,7 +752,7 @@ Module Lam_SES_NO_AlterContexts.
   (* Here a mapping from our to their contexts *)
   Definition context_to_IO {k1 k2} (c : context k1 k2) :
                match k2 with
-               | Eᵏ => context_IO Aio | Fᵏ => context_IO Cio 
+               | Eᵏ => context_IO Aio | Fᵏ => context_IO Cio
                | Dᵏ => context_IO Dio
                end.
 
@@ -832,7 +774,7 @@ Module Lam_SES_NO_AlterContexts.
       | e := ap_r _ ?t, IHc : context_IO Cio   |- _ => exact (ap_r_io IHc t)
       | e := ap_l _ ?v, IHc : context_IO Aio   |- _ => exact (ap_l_io (a_is_c_io IHc) v)
       | e := ap_l _ ?v, IHc : context_IO Cio   |- _ => exact (ap_l_io IHc v)
-      | e := esub_c ?k ?d |- _ => 
+      | e := esub_c ?k ?d |- _ =>
            destruct k;
            match goal with
            | IHc : context_IO Aio |- _ => exact (esub_c_io (a_is_d_io IHc) d)
@@ -843,7 +785,7 @@ Module Lam_SES_NO_AlterContexts.
   Defined.
 
   (* Here is a mapping from their into our contexts *)
-  Definition context_from_IO {k} (c : context_IO k) : 
+  Definition context_from_IO {k} (c : context_IO k) :
                match k with
                | Aio => context Eᵏ Eᵏ | Cio => context Eᵏ Eᵏ + context Eᵏ Fᵏ
                | Dio => context Eᵏ Eᵏ + context Eᵏ Fᵏ + context Eᵏ Dᵏ
@@ -869,24 +811,24 @@ Module Lam_SES_NO_AlterContexts.
 
 
   (* the composition of the two mappings is the identity on their contexts *)
-  Lemma to_from_IO_is_id : 
+  Lemma to_from_IO_is_id :
             forall k (c : context_IO k),
                 match k as k return context_IO k -> Prop with
                 | Cio => fun c =>
-                    c = match context_from_IO c with 
-                        | inl c => a_is_c_io (context_to_IO c) 
-                        | inr c => context_to_IO c 
+                    c = match context_from_IO c with
+                        | inl c => a_is_c_io (context_to_IO c)
+                        | inr c => context_to_IO c
                         end
                 | Aio => fun c => c = context_to_IO (context_from_IO c)
                 | Dio => fun c =>
-                    c = match context_from_IO c with 
-                        | inl (inl c) => a_is_d_io (context_to_IO c) 
-                        | inl (inr c) => c_is_d_io (context_to_IO c) 
-                        | inr c => context_to_IO c 
+                    c = match context_from_IO c with
+                        | inl (inl c) => a_is_d_io (context_to_IO c)
+                        | inl (inr c) => c_is_d_io (context_to_IO c)
+                        | inr c => context_to_IO c
                         end
                 end c.
   Proof.
-    induction c; 
+    induction c;
         simpl;
         repeat match goal with
         | _ : context [match ?s with inl _ => _ | inr _ => _ end] |- _ => destruct s
@@ -897,7 +839,7 @@ Module Lam_SES_NO_AlterContexts.
   Qed.
 
 (* the other composition of the two mappings is the identity on our contexts *)
-  Lemma from_to_IO_is_id : 
+  Lemma from_to_IO_is_id :
             forall k (c : context Eᵏ k),
                 match k as k return context Eᵏ k -> Prop with
                 | Eᵏ => fun c =>     c = context_from_IO (context_to_IO c)
@@ -910,8 +852,8 @@ Module Lam_SES_NO_AlterContexts.
     - destruct ec; destruct_all EF_kind;
       try match goal with |- inr (esub_c ?k ?e =: ?c) = _
           => destruct k end;
-      simpl; 
-      try rewrite <- IHc; 
+      simpl;
+      try rewrite <- IHc;
       try solve [congruence | auto].
   Qed.
 
@@ -930,10 +872,10 @@ Module Lam_SES_NO_AlterContexts.
       end.
 
   (* plugging a term into our context is the same as (their) plugging this term into the translation of the context to their contexts *)
-  Lemma plug_compatible : 
+  Lemma plug_compatible :
           forall {k1 k2} (c : context k1 k2) t,
               match k2 as k2 return context k1 k2 -> Prop with
-              | Eᵏ | Fᵏ | Dᵏ => fun c => c[t] = plug_IO t (context_to_IO c)  
+              | Eᵏ | Fᵏ | Dᵏ => fun c => c[t] = plug_IO t (context_to_IO c)
               end c.
   Proof.
     induction c.
@@ -946,14 +888,14 @@ Module Lam_SES_NO_AlterContexts.
 
 
   (* plugging a term into their context is the same as plugging this term into the translation of this context to our contexts *)
-  Lemma plug_compatible2 : 
+  Lemma plug_compatible2 :
           forall {k} (c : context_IO k) (t : term),
               plug_IO t c =
               match k as k return context_IO k -> term with
               | Aio => fun c => (context_from_IO c)[t]
-              | Cio => fun c => match context_from_IO c with 
+              | Cio => fun c => match context_from_IO c with
                                 | inl c | inr c => c[t] end
-              | Dio => fun c => match context_from_IO c with 
+              | Dio => fun c => match context_from_IO c with
                                 | inl (inl c) | inl (inr c) | inr c => c[t] end
               end c.
   Proof.

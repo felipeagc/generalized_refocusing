@@ -61,8 +61,11 @@ Module RED_SEM_BASE_Notions (Import B : RED_SEM_BASE).
   Definition immediate_ec {k0 k1} (ec : elem_context_kinded k0 k1) t := 
       exists t', ec:[t'] = t.
 
+  (* The same for immediate subterms *)
   Definition immediate_subterm t0 t := exists k1 k2 (ec : elem_context_kinded k1 k2),
       t = ec:[t0].
+
+  (* Subterm order is the transitive closure of the immediate_subterm relation. *)
   Definition subterm_order          := clos_trans_1n term immediate_subterm.
 
   (* Decomposition of a term is a pair consisting of a reduction context and *)

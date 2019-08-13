@@ -72,7 +72,13 @@ Module Addition_PreRefSem <: PRE_REF_SEM.
     | left_hole t' => Plus t t'
     | right_hole v => Plus (value_to_term v) t
     end.
-  Notation "ec :[ t ]" := (elem_plug t ec) (at level 0).
+
+  Definition contract {k} (r : redex k) : option term :=
+    match r with
+    | Addition (Value n) (Value m) => Some (Const (n + m))
+    end.
+
+  Include RED_SEM_BASE_Notions.
 
   Lemma elem_plug_injective1 : forall {k1 k2} (ec : elem_context_kinded k1 k2) {t0 t1},
       ec:[t0] = ec:[t1] -> t0 = t1.
@@ -81,13 +87,6 @@ Module Addition_PreRefSem <: PRE_REF_SEM.
     destruct ec;
     inversion H; trivial.
   Qed.
-
-  Definition contract {k} (r : redex k) : option term :=
-    match r with
-    | Addition (Value n) (Value m) => Some (Const (n + m))
-    end.
-
-  Include RED_SEM_BASE_Notions.
 
   Lemma wf_immediate_subterm: well_founded immediate_subterm.
   Proof.    REF_LANG_Help.prove_st_wf.

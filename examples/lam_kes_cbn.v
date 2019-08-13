@@ -20,8 +20,8 @@ Coercion pnat2nat : pnat >-> nat.
 
 Lemma pnat2nat_injective : forall m n, pnat2nat m = pnat2nat n -> m = n.
 Proof.
-  induction m; 
-      intros n H; 
+  induction m;
+      intros n H;
       destruct n; inversion H; subst.
   - auto.
   - destruct n; discriminate.
@@ -32,7 +32,7 @@ Qed.
 
 (* Non-empty lists: *)
 
-Inductive plist (T : Type) : Type := 
+Inductive plist (T : Type) : Type :=
 | PSingle : T -> plist T
 | PCons   : T -> plist T -> plist T.
 Arguments PSingle {T} _. Arguments PCons {T} _ _.
@@ -44,9 +44,9 @@ Fixpoint plist2list {T} (l : plist T) :=
     end.
 Coercion plist2list : plist >-> list.
 
-Fixpoint pcons2 {T} (e : T) (l : list T) := 
-    match l with 
-    | nil => PSingle e 
+Fixpoint pcons2 {T} (e : T) (l : list T) :=
+    match l with
+    | nil => PSingle e
     | cons e' l => PCons e (pcons2 e' l) end.
 
 Lemma plist2list_injective :                                forall {T} (l1 l2 : plist T),
@@ -77,10 +77,10 @@ Qed.
 Lemma pcons2_and_pcons :                                forall {T} (e : T) (l : plist T),
     PCons e l = pcons2 e l.
 
-Proof. 
+Proof.
   intros T e l; revert e.
   induction l; intro e;
-  simpl; 
+  simpl;
   solve [f_equal; eauto].
 Qed.
 
@@ -123,23 +123,10 @@ Module Lam_KES_CBN_PreRefSem <: PRE_REF_SEM.
   Definition elem_context_kinded (_ _ : ckind) : Type := closure.
   Hint Unfold elem_context_kinded.
 
-  Definition elem_plug {k1 k2} (t : term) (ec : elem_context_kinded k1 k2) : term := 
+  Definition elem_plug {k1 k2} (t : term) (ec : elem_context_kinded k1 k2) : term :=
       App t ec.
-  Notation "ec :[ t ]" := (elem_plug t ec) (at level 0).
 
-
-  Definition context : ckind -> ckind -> Type := path elem_context_kinded.
-
-  Definition plug t {k1 k2} (c : context k1 k2) : term :=
-    path_action (@elem_plug) t c.
-  Notation "c [ t ]" := (plug t c) (at level 0).
-
-
-  Definition immediate_ec {k1 k2} (ec : elem_context_kinded k1 k2) t := 
-      exists t', ec:[t'] = t.
-
-
-  Inductive value' : Type := 
+  Inductive value' : Type :=
   | vLam_cl : pnat -> term0 -> env -> value'.
   Definition value (_: ckind) := value'.
 
@@ -155,8 +142,8 @@ Module Lam_KES_CBN_PreRefSem <: PRE_REF_SEM.
   Definition redex (_: ckind) := redex'.
 
   Definition redex_to_term {k} (r : redex k) : term :=
-      match r with 
-      | rBeta n t th e cl  => App (Cl (Lam0 n t) (pcons2 th e)) cl 
+      match r with
+      | rBeta n t th e cl  => App (Cl (Lam0 n t) (pcons2 th e)) cl
       | rSubApp t1 t2 e    => Cl (App0 t1 t2) e
       | rSubVar p o e      => Cl (Var0 p o) e
       end.
@@ -171,48 +158,13 @@ Module Lam_KES_CBN_PreRefSem <: PRE_REF_SEM.
       | rBeta POne   t th e cl => Some (Cl t (PCons nil (pcons2 (cl::th) e)) : term)
       | rBeta (PS n) t th e cl => Some (Cl (Lam0 n t) (pcons2 (cl::th) e) : term)
       | rSubApp t1 t2 e        => Some (App (Cl t1 e) (Cl t2 e))
-      | rSubVar p o e          => match nth_error e (S p) with 
+      | rSubVar p o e          => match nth_error e (S p) with
                                   | None    => None
                                   | Some th => option_map Cl_t (nth_error th o)
                                   end
       end.
 
-
-  Inductive decomp k : Type :=
-  | d_red : forall {k'}, redex k' -> context k k' -> decomp k
-  | d_val : value k -> decomp k.
-  Arguments d_val {k} _. Arguments d_red {k} {k'} _ _.
-
-
-  Definition decomp_to_term {k} (d : decomp k) :=
-      match d with
-      | d_val v     => value_to_term v
-      | d_red r c => c[r]
-      end.
-  Coercion decomp_to_term : decomp >-> term.
-
-
-  Definition dec (t : term) k (d : decomp k) : Prop :=
-      t = d.
-
-
-  Definition reduce k t1 t2 := 
-      exists {k'} (c : context k k') (r : redex k') t,  dec t1 k (d_red r c) /\
-          contract r = Some t /\ t2 = c[t].
-
-
-  Instance lrws : LABELED_REWRITING_SYSTEM ckind term := 
-  { ltransition := reduce }.
-  Instance rws : REWRITING_SYSTEM term := 
-  { transition := reduce init_ckind }.
-
-
-  Definition immediate_subterm t0 t := exists k1 k2 (ec : elem_context_kinded k1 k2),
-      t = ec:[t0].
-
-
-  Definition subterm_order := clos_trans_1n term immediate_subterm.
-  Notation "t1 <| t2" := (subterm_order t1 t2)           (at level 70, no associativity).
+  Include RED_SEM_BASE_Notions.
 
 
   Lemma elem_plug_injective1 : forall {k1 k2} (ec : elem_context_kinded k1 k2) {t0 t1},
@@ -220,7 +172,7 @@ Module Lam_KES_CBN_PreRefSem <: PRE_REF_SEM.
 
   Proof.
     intros ? ? ec t0 t1 H.
-    destruct ec; inversion H; 
+    destruct ec; inversion H;
     auto.
   Qed.
 
@@ -240,7 +192,7 @@ Module Lam_KES_CBN_PreRefSem <: PRE_REF_SEM.
 
   Proof.
     intros k r r' H.
-    destruct r, r'; inversion H; subst; 
+    destruct r, r'; inversion H; subst;
     try solve [ f_equal;
                 eauto using plist2list_injective ].
     - destruct (pcons2_injective _ _ _ _ H3); subst; auto.
@@ -254,7 +206,7 @@ Module Lam_KES_CBN_PreRefSem <: PRE_REF_SEM.
 
   Proof.
     intros ? ? ec t v H.
-    destruct ec, v; 
+    destruct ec, v;
     discriminate.
   Qed.
 
@@ -262,9 +214,9 @@ Module Lam_KES_CBN_PreRefSem <: PRE_REF_SEM.
   Lemma value_redex :                             forall {k} (v : value k) (r : redex k),
       value_to_term v <> redex_to_term r.
 
-  Proof. 
-    intros k v r. 
-    destruct v, r; 
+  Proof.
+    intros k v r.
+    destruct v, r;
     solve [eauto].
   Qed.
 
@@ -272,7 +224,7 @@ Module Lam_KES_CBN_PreRefSem <: PRE_REF_SEM.
   Lemma redex_trivial1 :   forall {k k'} (r : redex k) (ec : elem_context_kinded k k') t,
        ec:[t] = r -> exists (v : value k'), t = v.
 
-  Proof. 
+  Proof.
     intros ? ? r ec t H.
     destruct ec, r; inversion H; subst.
     - eexists (vLam_cl _ _ _); reflexivity.
@@ -291,7 +243,7 @@ Module Lam_KES_CBN_PreRefSem <: PRE_REF_SEM.
   (* Extras *)
   Fixpoint closed_within (t : term0) (el : plist nat) : Prop :=
       match t with
-      | Lam0 n t   => match el with 
+      | Lam0 n t   => match el with
                       | PSingle m  => closed_within t (PCons 0 (PSingle (n + m)))
                       | PCons m el => closed_within t (PCons 0 (PCons (n + m) el))
                       end
@@ -303,7 +255,7 @@ Module Lam_KES_CBN_PreRefSem <: PRE_REF_SEM.
       end.
 
 
-  Fixpoint env_layout (e : env) : plist nat := 
+  Fixpoint env_layout (e : env) : plist nat :=
       match e with
       | PSingle th => PSingle (length th)
       | PCons th e => PCons (length th) (env_layout e)
@@ -328,8 +280,8 @@ Module Lam_KES_CBN_PreRefSem <: PRE_REF_SEM.
     with ct_Ind := Induction for closed_th  Sort Prop.
 
 
-  Fixpoint closed (t : term) : Prop := 
-      match t with 
+  Fixpoint closed (t : term) : Prop :=
+      match t with
       | Cl_t cl  => closed_cl cl
       | App t cl => closed t /\ closed_cl cl
       end.
@@ -354,7 +306,7 @@ Module Lam_KES_CBN_PreRefSem <: PRE_REF_SEM.
 
   Proof.
     intros th n cl H; revert n cl.
-    induction H; 
+    induction H;
         intros n cl' H1;
         destruct n;
         inversion H1; subst;
@@ -363,7 +315,7 @@ Module Lam_KES_CBN_PreRefSem <: PRE_REF_SEM.
 
 
   Lemma env_layout_nth_is_th_size :                              forall (e : env) n th m,
-      nth_error e n = Some th -> nth_error (env_layout e) n = Some m -> 
+      nth_error e n = Some th -> nth_error (env_layout e) n = Some m ->
           m = length th.
 
   Proof.
@@ -371,12 +323,12 @@ Module Lam_KES_CBN_PreRefSem <: PRE_REF_SEM.
     induction n as [ | n];
         intros e th m H H0;
         destruct e as [th1 | th1 e]; inversion H; subst;
-    solve 
+    solve
     [ inversion H0;
       auto
     | destruct n; discriminate
     | eauto ].
-  Qed. 
+  Qed.
 
 
   Lemma env_layout_semi_correct :                                     forall (e : env) n,
@@ -384,14 +336,14 @@ Module Lam_KES_CBN_PreRefSem <: PRE_REF_SEM.
 
   Proof.
     intros e n; revert e.
-    induction n as [ | n]; 
+    induction n as [ | n];
         intros e; split; intro H;
-        destruct e; inversion H; subst; 
+        destruct e; inversion H; subst;
     solve
     [ auto
     | destruct n; auto
     | apply IHn; auto ].
-  Qed. 
+  Qed.
 
 
   Require Import Arith.
@@ -417,7 +369,7 @@ Module Lam_KES_CBN_PreRefSem <: PRE_REF_SEM.
   Lemma contract_closed :                                       forall {k} (r : redex k),
       closed r -> exists t, contract r = Some t /\ closed t.
 
-  Let Ar : forall m n, S (m + n) = m + S n. 
+  Let Ar : forall m n, S (m + n) = m + S n.
   Proof. auto with arith. Qed.
 
   Proof with eauto.
@@ -434,14 +386,14 @@ Module Lam_KES_CBN_PreRefSem <: PRE_REF_SEM.
           inversion H4; subst;
       solve [repeat (constructor; auto)].
 
-    - eexists. intuition. 
+    - eexists. intuition.
       inversion H; subst.
       simpl in *.
-      split; 
+      split;
       solve [constructor; intuition].
 
     - inversion H; subst.
-      cut (exists th, nth_error p (S n) = Some th /\ 
+      cut (exists th, nth_error p (S n) = Some th /\
            exists cl, nth_error th n0 = Some cl).
       {
           intros [th [H0 [cl H1]]].
@@ -455,12 +407,12 @@ Module Lam_KES_CBN_PreRefSem <: PRE_REF_SEM.
       }
 
       unfold closed_within in H2.
-      remember (nth_error (env_layout p) (S n)) as th_size_o; 
+      remember (nth_error (env_layout p) (S n)) as th_size_o;
       destruct th_size_o as [n1 | ]; autof.
-      remember (nth_error p (S n)) as th_o; 
+      remember (nth_error p (S n)) as th_o;
       destruct th_o as [th | ];
           symmetry in Heqth_size_o, Heqth_o.
-      + assert (n1 = length th). 
+      + assert (n1 = length th).
         { eauto using env_layout_nth_is_th_size. }
         exists th.
         intuition.
@@ -490,7 +442,7 @@ Module Lam_KES_CBN_PreRefSem <: PRE_REF_SEM.
   Proof.
     induction c; intros t1 t2 H H0.
     - auto.
-    - apply (IHc ec:[t1]); auto. 
+    - apply (IHc ec:[t1]); auto.
       simpl in H.
       apply context_closed in H; simpl in H.
       simpl.
@@ -508,15 +460,6 @@ Module Lam_KES_CBN_PreRefSem <: PRE_REF_SEM.
     exists t.
     eauto using plug_replace_closed.
   Qed.
-
-
-  Class SafeKRegion (k : ckind) (P : term -> Prop) :=
-  { 
-      preservation :                                                        forall t1 t2,
-          P t1  ->  k |~ t1 → t2  ->  P t2;
-      progress :                                                               forall t1,
-          P t1  ->  (exists (v : value k), t1 = v) \/ (exists t2, k |~ t1 → t2)
-  }.
 
 End Lam_KES_CBN_PreRefSem.
 
@@ -549,7 +492,7 @@ Module Lam_KES_CBN_Strategy <: REF_STRATEGY Lam_KES_CBN_PreRefSem.
           {k k' : ckind} (ec : elem_context_kinded k k') (v : value k') : elem_dec k :=
 
       match v with
-      | vLam_cl n t e => match e with 
+      | vLam_cl n t e => match e with
                          | PSingle th => ed_red (rBeta n t th nil ec)
                          | PCons th e => ed_red (rBeta n t th e ec)
                          end
@@ -581,7 +524,7 @@ Module Lam_KES_CBN_Strategy <: REF_STRATEGY Lam_KES_CBN_PreRefSem.
     destruct ec, v.
     destruct p1; simpl.
     - auto.
-    - unfold elem_plug. 
+    - unfold elem_plug.
       repeat (f_equal; eauto using pcons2_and_pcons).
   Qed.
 
@@ -747,7 +690,7 @@ Module Example.
   Proof. repeat constructor; simpl; auto. Qed.
 
 
-  Variables 
+  Variables
   (t        : term)
   (t_closed : closed t).
 
