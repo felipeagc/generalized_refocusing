@@ -375,14 +375,7 @@ End Lam_ClES_NO_PreRefSem.
 Module Lam_ClES_NO_Strategy <: REF_STRATEGY Lam_ClES_NO_PreRefSem.
 
   Import Lam_ClES_NO_PreRefSem.
-
-
-  Inductive elem_dec k : Type :=
-  | ed_red  : redex k -> elem_dec k
-  | ed_dec : forall k', term -> elem_context_kinded k k' -> elem_dec k
-  | ed_val  : value k -> elem_dec k.
-  Arguments ed_red {k} _.    Arguments ed_val {k} _.
-  Arguments ed_dec {k} k' _ _.
+  Include RED_STRATEGY_STEP_Notions Lam_ClES_NO_PreRefSem.
 
 
   Definition dec_term t k : elem_dec k :=
@@ -443,12 +436,7 @@ Module Lam_ClES_NO_Strategy <: REF_STRATEGY Lam_ClES_NO_PreRefSem.
       end v.
 
 
-  Lemma dec_term_correct :                                           forall (t : term) k,
-      match dec_term t k with
-      | ed_red r      => t = r
-      | ed_val v      => t = v
-      | ed_dec _ t' ec => t = ec:[t']
-      end.
+  Lemma dec_term_correct : forall t k, t = elem_rec (dec_term t k).
 
   Proof.
     destruct k, t;
@@ -483,12 +471,8 @@ Module Lam_ClES_NO_Strategy <: REF_STRATEGY Lam_ClES_NO_PreRefSem.
   Qed.*)
 
 
-  Lemma dec_context_correct :            forall {k k'} (ec : elem_context_kinded k k') v,
-      match dec_context ec v with
-      | ed_red r      => ec:[v] = r
-      | ed_val v'     => ec:[v] = v'
-      | ed_dec _ t ec' => ec:[v] = ec':[t]
-      end.
+  Lemma dec_context_correct : forall {k k'} (ec : elem_context_kinded k k') (v : value k'),
+      ec:[v] = elem_rec (dec_context ec v).
 
   Proof.
     intros k k' ec v.

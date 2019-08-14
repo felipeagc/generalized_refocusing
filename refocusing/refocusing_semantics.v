@@ -1,8 +1,9 @@
 (*** Interface part ***)
 
 
-Require Import Program 
+Require Import Program
                Util
+               RelationClasses
                rewriting_system
                reduction_languages_facts.
 Require Export reduction_semantics
@@ -33,11 +34,9 @@ Module Type REF_STRATEGY (PR : PRE_REF_SEM) <: RED_STRATEGY PR.
   Include RED_STRATEGY PR.
 
   Axioms 
-  (wf_search :                                                                forall k t,
-       well_founded (search_order k t))
+  (wf_search : forall k t, well_founded (search_order k t))
 
-  (search_order_trans :                                           forall k t ec0 ec1 ec2,
-       k, t |~ ec0 << ec1 -> k, t |~ ec1 << ec2 -> k,t |~ ec0 << ec2)
+  (search_order_trans : forall k t, Transitive (search_order k t))
 
   (search_order_comp_if :
                              forall t k k' k'' (ec0 : elem_context_kinded k k') 
@@ -309,7 +308,7 @@ Module RedRefSem (PR : PRE_REF_SEM) (ST : REF_STRATEGY PR) <: RED_REF_SEM.
     induction t using (well_founded_ind wf_subterm_order); intros; subst.
 
     dependent destruction H0;
-        assert (hh := dec_term_correct (v:term) k2); rewrite H0 in hh.
+        assert (hh := dec_term_correct (v:term) k2); rewrite H0 in hh; simpl in hh.
 
     - contradiction (value_redex _ _ hh).
 
@@ -329,7 +328,7 @@ Module RedRefSem (PR : PRE_REF_SEM) (ST : REF_STRATEGY PR) <: RED_REF_SEM.
       { apply (H x)... do 2 econstructor... }
 
       dependent destruction H2;
-          assert (gg := dec_context_correct ec v0); rewrite H2 in gg.
+          assert (gg := dec_context_correct ec v0); rewrite H2 in gg; simpl in gg.
 
       + contradiction (value_redex v r); congruence.
 
@@ -356,7 +355,7 @@ Module RedRefSem (PR : PRE_REF_SEM) (ST : REF_STRATEGY PR) <: RED_REF_SEM.
 
     remember (dec_term v k2) as i;
     assert (hh := dec_term_correct v k2);
-    destruct i; rewrite <- Heqi in hh; symmetry in Heqi.
+    destruct i; rewrite <- Heqi in hh; simpl in hh; symmetry in Heqi.
 
     - contradict (value_redex _ _ hh).
 
@@ -376,7 +375,7 @@ Module RedRefSem (PR : PRE_REF_SEM) (ST : REF_STRATEGY PR) <: RED_REF_SEM.
       { do 2 econstructor... }
       remember (dec_context e x) as i.
       assert (gg := dec_context_correct e x);
-      destruct i; rewrite <- Heqi in gg. 
+      destruct i; rewrite <- Heqi in gg; simpl in gg.
       symmetry in Heqi.
 
       + contradiction (value_redex v r); congruence.
@@ -504,7 +503,7 @@ Module RedRefSem (PR : PRE_REF_SEM) (ST : REF_STRATEGY PR) <: RED_REF_SEM.
     induction e using (well_founded_ind (wf_search k1 r)); intros.
     remember (dec_context ec v) as D eqn:HeqD; destruct D;
     assert (H2 := dec_context_correct ec v);
-    rewrite <- HeqD in H2.
+    rewrite <- HeqD in H2; simpl in H2.
     - constructor 2. 
       assert (r = r0). 
       { apply redex_to_term_injective; congruence. }
@@ -541,7 +540,7 @@ Module RedRefSem (PR : PRE_REF_SEM) (ST : REF_STRATEGY PR) <: RED_REF_SEM.
     induction e using (well_founded_ind (wf_search k v)); intros.
     remember (dec_context ec v0) as D eqn:HeqD; destruct D;
     assert (H3 := dec_context_correct ec v0);
-    rewrite <- HeqD in H3.
+    rewrite <- HeqD in H3; simpl in H3.
     - assert ((v : term) = r).
       { compute; congruence. }
       exfalso; eauto using (value_redex v r).
@@ -574,7 +573,7 @@ Module RedRefSem (PR : PRE_REF_SEM) (ST : REF_STRATEGY PR) <: RED_REF_SEM.
       - apply IHc in H; clear IHc.
        inversion H; dep_subst.
        assert (hh := dec_term_correct (ec):[t] k2);
-       rewrite H3 in hh.
+       rewrite H3 in hh; simpl in hh.
 
         + auto using refocus_in_under_redex.
 
@@ -583,7 +582,7 @@ Module RedRefSem (PR : PRE_REF_SEM) (ST : REF_STRATEGY PR) <: RED_REF_SEM.
           eauto using refocus_in_under_value.
 
         + assert (hh := dec_term_correct (ec):[t] k2);
-          rewrite H1 in hh.
+          rewrite H1 in hh; simpl in hh.
 
           destruct (search_order_comp_if ec:[t] _ _ _ ec0 ec) as [H3 | [H3 | H3]].
           compute...
@@ -613,6 +612,7 @@ Module RedRefSem (PR : PRE_REF_SEM) (ST : REF_STRATEGY PR) <: RED_REF_SEM.
                 - assert (ht := dec_context_correct ec0 v).
                   rewrite H1 in ht.
                   rewrite <- hh in ht.
+                  simpl in ht.
                   destruct (dec_context_term_next _ _ _ _ H1) as (H4', H6).
                   destruct (search_order_comp_if ec:[t] _ _ _ ec2 ec) as [H7|[H7|H7]].
 
@@ -672,7 +672,7 @@ Module RedRefSem (PR : PRE_REF_SEM) (ST : REF_STRATEGY PR) <: RED_REF_SEM.
         symmetry in HeqD;
         destruct D;
         assert (DTC2 := dec_term_correct ec:[t] k2);
-        rewrite HeqD in DTC2;
+        rewrite HeqD in DTC2; simpl in DTC2;
         subst.
         + cut (d = d_red r (c~+c0)).
           { intro; subst; constructor; auto. }
@@ -687,7 +687,7 @@ Module RedRefSem (PR : PRE_REF_SEM) (ST : REF_STRATEGY PR) <: RED_REF_SEM.
 
           dependent destruction H0; dep_subst;
           assert (DCC := dec_context_correct ec v);
-          rewrite H0 in DCC.
+          rewrite H0 in DCC; simpl in DCC.
           * assert (r = r0).
             { apply redex_to_term_injective; congruence. }
             subst.
@@ -729,7 +729,7 @@ Module RedRefSem (PR : PRE_REF_SEM) (ST : REF_STRATEGY PR) <: RED_REF_SEM.
                 destruct D;
                     symmetry in HeqD;
                     assert (ht := dec_context_correct e v); 
-                    rewrite HeqD in ht;
+                    rewrite HeqD in ht; simpl in ht;
                     subst e0.
 
                 - rewrite DTC2 in H1.
@@ -793,7 +793,7 @@ Module RedRefSem (PR : PRE_REF_SEM) (ST : REF_STRATEGY PR) <: RED_REF_SEM.
 
           assert (DCC := dec_context_correct ec v').
           dependent destruction H0;
-          rewrite H0 in DCC.
+          rewrite H0 in DCC; simpl in DCC.
           * exfalso.
             assert ((v : term) = r).
             { congruence. }

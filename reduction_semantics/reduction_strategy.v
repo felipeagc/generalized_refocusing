@@ -1,6 +1,28 @@
 Require Import path
                reduction_semantics.
 
+Module RED_STRATEGY_STEP_Notions (Import R : RED_SEM_BASE).
+
+  (* Up arrow and down arrow functions return that the input term is *)
+  (* either a redex (ed_red) or a value (ed_val) or that we have to  *)
+  (* continue searching inside a subterm (ed_dec) *)
+  Inductive elem_dec k : Type :=
+  | ed_red : redex k -> elem_dec k
+  | ed_dec : forall k', term -> elem_context_kinded k k' -> elem_dec k
+  | ed_val : value k -> elem_dec k.
+
+  Arguments ed_red {k} _.       Arguments ed_val {k} _.
+  Arguments ed_dec {k} k' _ _.
+
+  Definition elem_rec {k} (d : elem_dec k) : term :=
+    match d with
+    | ed_red r       => redex_to_term r
+    | ed_val v       => value_to_term v
+    | ed_dec _ t' ec => elem_plug t' ec
+    end.
+
+End RED_STRATEGY_STEP_Notions.
+
 Module Type RED_STRATEGY_LANG.
 
   Include RED_SEM_BASE.
@@ -27,20 +49,9 @@ Module Type RED_STRATEGY_LANG.
 
 End RED_STRATEGY_LANG.
 
+Module Type RED_STRATEGY_STEP (Import R : RED_STRATEGY_LANG).
 
-
-Module Type RED_STRATEGY_STEP (R : RED_STRATEGY_LANG).
-
-  Import R.
-
-
-  Inductive elem_dec k : Type :=
-  | ed_red : redex k -> elem_dec k
-  | ed_dec : forall k', term -> elem_context_kinded k k' -> elem_dec k
-  | ed_val : value k -> elem_dec k.
-
-  Arguments ed_red {k} _.       Arguments ed_val {k} _.
-  Arguments ed_dec {k} k' _ _.
+  Include RED_STRATEGY_STEP_Notions R.
 
   (* dec_term t k          - one step of decomposition of t considered in the hole of
                              the kind k if we have no information about subterms of t.
@@ -53,21 +64,11 @@ Module Type RED_STRATEGY_STEP (R : RED_STRATEGY_LANG).
   (dec_context :                                                           forall {k k'},
                  elem_context_kinded k k' -> value k' -> elem_dec k).
 
-
   Axioms
-  (dec_term_correct :
-       forall t k, match dec_term t k with
-       | ed_red r      => t = r
-       | ed_val v      => t = v
-       | ed_dec _ t' ec => t = ec:[t']
-       end)
+  (dec_term_correct : forall t k, t = elem_rec (dec_term t k))
 
-   (dec_context_correct :                forall {k k'} (ec : elem_context_kinded k k') v,
-      match dec_context ec v with
-      | ed_red r      => ec:[v] = r
-      | ed_val v'     => ec:[v] = v'
-      | ed_dec _ t ec' => ec:[v] = ec':[t]
-       end).
+  (dec_context_correct : forall {k k'} (ec : elem_context_kinded k k') (v : value k'),
+      ec:[v] = elem_rec (dec_context ec v)).
 
 End RED_STRATEGY_STEP.
 

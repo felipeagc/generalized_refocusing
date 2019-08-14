@@ -236,18 +236,7 @@ End Lam_cbv_PreRefSem.
 Module Lam_cbv_Strategy <: REF_STRATEGY Lam_cbv_PreRefSem.
 
   Import Lam_cbv_PreRefSem.
-
-  (* Here we define the two functions: up arrow and down arrow. *)
-  (* We start by defining the type returned by these functions.  *)
-  (* They return that the input term is either a redex (ed_red) *)
-  (* or a value (ed_val) or that we have to continue searching  *)
-  (* inside a subterm (ed_dec) *)
-  Inductive elem_dec k : Type :=
-  | ed_red  : redex k -> elem_dec k
-  | ed_dec : forall k', term -> elem_context_kinded k k' -> elem_dec k
-  | ed_val  : value k -> elem_dec k.
-  Arguments ed_red {k} _.       Arguments ed_val {k} _.
-  Arguments ed_dec {k} k' _ _.
+  Include RED_STRATEGY_STEP_Notions Lam_cbv_PreRefSem.
 
 
 
@@ -274,12 +263,7 @@ Module Lam_cbv_Strategy <: REF_STRATEGY Lam_cbv_PreRefSem.
   (* The decomposed term after the decomposition must be equal *)
   (* to itself before the decomposition. *)
 
-  Lemma dec_term_correct :
-    forall (t : term) k, match dec_term t k with
-                         | ed_red r      => t = r
-                         | ed_val v      => t = v
-                         | ed_dec _ t' ec => t = ec:[t']
-                         end.
+  Lemma dec_term_correct : forall t k, t = elem_rec (dec_term t k).
   Proof.
     destruct k,t ; simpl; auto.
   Qed.
@@ -322,12 +306,8 @@ Module Lam_cbv_Strategy <: REF_STRATEGY Lam_cbv_PreRefSem.
 
 
   (* The two pairs (term, context) before and after decomposition represent the same term. *)
-  Lemma dec_context_correct :         forall {k k'} (ec : elem_context_kinded k k') v,
-      match dec_context ec v with
-      | ed_red r        => ec:[v] = r
-      | ed_val v'       => ec:[v] = v'
-      | ed_dec _ t ec' => ec:[v] = ec':[t]
-      end.
+  Lemma dec_context_correct : forall {k k'} (ec : elem_context_kinded k k') (v : value k'),
+      ec:[v] = elem_rec (dec_context ec v).
 
   Proof.
     intros ? ? ec v.

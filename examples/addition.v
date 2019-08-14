@@ -2,6 +2,7 @@
 
 Require Import Program
                Util
+               RelationClasses
                refocusing_semantics.
 
 Module Addition_PreRefSem <: PRE_REF_SEM.
@@ -14,7 +15,7 @@ Module Addition_PreRefSem <: PRE_REF_SEM.
   Hint Unfold term.
 
   Definition ckind : Type := ().
-  Hint Unfold  ckind.
+  Hint Unfold ckind.
 
   Inductive val : ckind -> Type :=
   | Value : nat -> val ().
@@ -122,13 +123,7 @@ End Addition_PreRefSem.
 Module Addition_Strategy <: REF_STRATEGY Addition_PreRefSem.
 
   Import Addition_PreRefSem.
-
-  Inductive elem_dec k : Type :=
-  | ed_red  : redex k -> elem_dec k
-  | ed_dec : forall k', term -> elem_context_kinded k k' -> elem_dec k
-  | ed_val  : value k -> elem_dec k.
-  Arguments ed_red {k} _.       Arguments ed_val {k} _.
-  Arguments ed_dec {k} k' _ _.
+  Include RED_STRATEGY_STEP_Notions Addition_PreRefSem.
 
   Definition dec_term (t : expr) (k : ckind) : elem_dec k :=
   match k with () =>
@@ -138,12 +133,7 @@ Module Addition_Strategy <: REF_STRATEGY Addition_PreRefSem.
     end
   end.
 
-  Lemma dec_term_correct :
-    forall (t : term) k, match dec_term t k with
-                         | ed_red r      => t = r
-                         | ed_val v      => t = v
-                         | ed_dec _ t' ec => t = ec:[t']
-                         end.
+  Lemma dec_term_correct : forall t k, t = elem_rec (dec_term t k).
   Proof. intros [|] []; simpl; auto. Qed.
 
   Definition dec_context {k k': ckind} (ec: elem_context_kinded k k') (v: value k') : elem_dec k :=
@@ -152,12 +142,8 @@ Module Addition_Strategy <: REF_STRATEGY Addition_PreRefSem.
     | right_hole v' => fun v => ed_red (Addition v' v)
     end v.
 
-  Lemma dec_context_correct :         forall {k k'} (ec : elem_context_kinded k k') v,
-      match dec_context ec v with
-      | ed_red r        => ec:[v] = r
-      | ed_val v'       => ec:[v] = v'
-      | ed_dec _ t ec' => ec:[v] = ec':[t]
-      end.
+  Lemma dec_context_correct : forall {k k'} (ec : elem_context_kinded k k') (v : value k'),
+      ec:[v] = elem_rec (dec_context ec v).
   Proof. intros ? ? [|] ?; simpl; auto. Qed.
 
   Inductive elem_context_in k : Type :=
@@ -197,9 +183,7 @@ Module Addition_Strategy <: REF_STRATEGY Addition_PreRefSem.
      try (inversion H; dep_subst; clear H)).
   Qed.
 
-  Lemma search_order_trans :  forall k t ec0 ec1 ec2,
-      k,t |~ ec0 << ec1 -> k,t |~ ec1 << ec2 ->
-      k,t |~ ec0 << ec2.
+  Lemma search_order_trans : forall k t, Transitive (search_order k t).
   Proof.
     intros k t [? ec0] [? ec1] [? ec2] H H0.
     destruct ec0; dependent destruction ec1;

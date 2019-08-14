@@ -58,24 +58,23 @@ Module RefEvalApplyMachine_Facts (R   : RED_REF_SEM)
               assert (G := dec_context_correct ec v);
               rewrite H in G
         end;
+        simpl in G;
 
     try solve 
     [ left; 
-      simpl; congruence ].
+      simpl; congruence ];
 
-    - right.
-      simpl; unfold reduce, dec.
-      exists k, c, r, t0.
+    right;
+    simpl; unfold reduce, dec.
+    - exists k, c, r, t0.
       intuition.
-      + simpl.
-        congruence.
+      simpl.
+      congruence.
 
-    - right.
-      simpl; unfold reduce, dec.
-      exists k, c, r, t.
+    - exists k, c, r, t.
       intuition.
-      + simpl.
-          congruence.
+      simpl.
+      congruence.
   Qed.
 
 

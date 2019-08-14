@@ -469,14 +469,7 @@ End Lam_KES_CBN_PreRefSem.
 Module Lam_KES_CBN_Strategy <: REF_STRATEGY Lam_KES_CBN_PreRefSem.
 
   Import Lam_KES_CBN_PreRefSem.
-
-
-  Inductive elem_dec k : Type :=
-  | ed_red  : redex k -> elem_dec k
-  | ed_dec : forall k', term -> elem_context_kinded k k' -> elem_dec k
-  | ed_val  : value k -> elem_dec k.
-  Arguments ed_red {k} _.       Arguments ed_val {k} _.
-  Arguments ed_dec {k} k' _ _.
+  Include RED_STRATEGY_STEP_Notions Lam_KES_CBN_PreRefSem.
 
 
   Definition dec_term (t : term) (k : ckind) : elem_dec k :=
@@ -499,12 +492,7 @@ Module Lam_KES_CBN_Strategy <: REF_STRATEGY Lam_KES_CBN_PreRefSem.
       end.
 
 
-  Lemma dec_term_correct :                                                    forall t k,
-      match dec_term t k with
-      | ed_red r      => t = r
-      | ed_val v      => t = v
-      | ed_dec _ t' ec => t = ec:[t']
-      end.
+  Lemma dec_term_correct : forall t k, t = elem_rec (dec_term t k).
 
   Proof.
     destruct t, k; simpl.
@@ -513,12 +501,8 @@ Module Lam_KES_CBN_Strategy <: REF_STRATEGY Lam_KES_CBN_PreRefSem.
   Qed.
 
 
-  Lemma dec_context_correct :            forall {k k'} (ec : elem_context_kinded k k') v,
-      match dec_context ec v with
-      | ed_red r      => ec:[v] = r
-      | ed_val v'     => ec:[v] = v'
-      | ed_dec _ t ec' => ec:[v] = ec':[t]
-      end.
+  Lemma dec_context_correct : forall {k k'} (ec : elem_context_kinded k k') (v : value k'),
+      ec:[v] = elem_rec (dec_context ec v).
 
   Proof.
     destruct ec, v.
