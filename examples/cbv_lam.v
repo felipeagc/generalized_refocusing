@@ -552,20 +552,6 @@ Definition ω := (Lam "x" (App (Var "x") (Var "x"))).
 Definition I := (Lam "z" (Var "z")).
 Definition t := (App ω I).
 
-Fixpoint list_configs c n i :=
-(* List of numbered configurations while executing the machine on configuration c
-   for n steps and starting the numbering from i  *)
- match n with
- | 0 => nil
- | S n' =>  match c with
-            | None => nil
-            | Some c' => cons (i,c')  (list_configs (n_steps c' 1) n' (S i))
-            end
- end.
-
-Fixpoint list_configurations t n := list_configs (Some (load t)) n 1.
-(* List of numbered configurations while executing the machine for n steps on term t  *)
-
 Eval compute in list_configurations t 15.
 
 (* and the complete machine *)

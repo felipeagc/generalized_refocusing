@@ -184,6 +184,21 @@ Module DetAbstractMachine_Sim (AM : DET_ABSTRACT_MACHINE).
 
 END Hell *)
 
+  (* List of numbered configurations while executing the machine on configuration c
+     for n steps and starting the numbering from i  *)
+  Fixpoint list_configs c n i :=
+   match n with
+   | 0 => nil
+   | S n' =>  match c with
+              | None => nil
+              | Some c' => cons (i,c')  (list_configs (n_steps c' 1) n' (S i))
+              end
+   end.
+
+
+  (* List of numbered configurations while executing the machine for n steps on term t *)
+  Fixpoint list_configurations t n := list_configs (Some (load t)) n 1.
+
 End DetAbstractMachine_Sim.
 
 

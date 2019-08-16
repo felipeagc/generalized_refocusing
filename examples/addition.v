@@ -351,22 +351,10 @@ Import Addition_EAM.
 
 Require Import abstract_machine_facts.
 Module Addition_sim := DetAbstractMachine_Sim Addition_EAM.
-Import Addition_sim.
-
-Fixpoint list_configs c n i :=
- match n with
- | 0 => nil
- | S n' =>  match c with
-            | None => nil
-            | Some c' => cons (i,c')  (list_configs (n_steps c' 1) n' (S i))
-            end
- end.
-
-Fixpoint list_configurations t n := list_configs (Some (load t)) n 1.
 
 Definition t := (Plus (Plus 1 2) (Plus 4 8)).
 
-Eval compute in list_configurations t 17.
+Compute Addition_sim.list_configurations t 17.
 
 (*
 [( 1 + 2 ) + ( 4 + 8 )]
