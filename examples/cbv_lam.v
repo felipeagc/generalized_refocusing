@@ -2,7 +2,10 @@
 
 Require Import Program
                Util
+               String
                refocusing_semantics.
+
+Open Scope string_scope.
 
 (* Here we define the reduction semantics. *)
 (* The module type PRE_REF_SEM is defined in  the file refocusing/refocusing_semantics.v *)
@@ -14,28 +17,10 @@ Module Lam_cbv_PreRefSem <: PRE_REF_SEM.
   (* To define it, we first have to define variables and prove *)
   (* that their equality is decidable. *)
 
-  (* We define variables as numbered identifiers. *)
-  Inductive id :=
-  | Id : nat -> id.
+  (* We define variables as identifiers. *)
+  Definition var := string.
 
-
-  Definition var := id.
-
-  Theorem eq_var : forall x y : var, {x = y} + {x <> y}.
-  Proof.
-    intros x.
-    destruct x as [n]. induction n.
-    - intros y.
-      destruct y as [m]. destruct m.
-      + left. reflexivity.
-      + right. intros contra. inversion contra.
-    - intros y. destruct y as [m].
-      destruct m as [|m'].
-      + right. intros contra. inversion contra.
-      + destruct IHn with (y := Id m') as [eq | neq].
-        left. apply f_equal.  inversion eq. reflexivity.
-        right. intros Heq. inversion Heq as [Heq']. apply neq. rewrite Heq'. reflexivity.
-  Defined.
+  Definition eq_var : forall x y : var, {x = y} + {x <> y} := string_dec.
 
 
   (* Here we define the language of interest: lambda calculus. *)
@@ -159,8 +144,8 @@ Module Lam_cbv_PreRefSem <: PRE_REF_SEM.
   where "'[' x ':=' s ']' t" := (subst x s t).
 
   (* Example: to see how a substitution works, uncomment the lines below *)
-  (* Eval compute in [Id 1 := (Lam (Id 2) (Var (Id 2)))] Var (Id 1). (* [x:= \y.y] x *) *)
-  (* Eval compute in [Id 1 := (Lam (Id 2) (Var (Id 2)))] Var (Id 2). (* [x:= \y.y] y *) *)
+  (* Eval compute in ["x" := (Lam "y" (Var "y"))] Var "x". (* [x:= \y.y] x *) *)
+  (* Eval compute in ["x" := (Lam "y" (Var "y"))] Var "y". (* [x:= \y.y] y *) *)
 
 
   (* Now we are ready to define the contraction. In our case this is simply beta reduction. *)
@@ -563,10 +548,9 @@ Require Import abstract_machine_facts.
 Module Lam_cbv_sim := DetAbstractMachine_Sim Lam_cbv_EAM.
 Import Lam_cbv_sim.
 
-Definition x := Id 1.
-Definition xx:= (Lam x (App (Var x) (Var x))).
-Definition id:= (Lam x (Var x)).
-Definition t:= (App xx id).
+Definition ω := (Lam "x" (App (Var "x") (Var "x"))).
+Definition I := (Lam "z" (Var "z")).
+Definition t := (App ω I).
 
 Fixpoint list_configs c n i :=
 (* List of numbered configurations while executing the machine on configuration c
@@ -582,7 +566,7 @@ Fixpoint list_configs c n i :=
 Fixpoint list_configurations t n := list_configs (Some (load t)) n 1.
 (* List of numbered configurations while executing the machine for n steps on term t  *)
 
-Eval compute in list_configurations  t 15 .
+Eval compute in list_configurations t 15.
 
 (* and the complete machine *)
 Print Lam_cbv_EAM.

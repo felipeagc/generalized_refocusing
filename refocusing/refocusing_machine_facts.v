@@ -7,7 +7,6 @@ Require Import Program
                refocusing_semantics
                refocusing_machine
                reduction_languages_facts
-               reduction_semantics_facts
                refocusing_semantics_facts.
         Import rewriting_system.Paths.
 
