@@ -3,7 +3,7 @@ Require Import Relations
                Program.
 Require Export rewriting_system path.
 
-Module Type RED_SEM_BASE.
+Module Type RED_MINI_LANG.
   Parameters
   (term          : Type) (* the language *)
   (ckind         : Type) (* the set of reduction/context kinds *)
@@ -26,17 +26,12 @@ Module Type RED_SEM_BASE.
   (value         : ckind -> Type)
                         (* the set of repressentations of values of a kind *)
   (redex_to_term : forall {k}, redex k -> term)
-  (value_to_term : forall {k}, value k -> term)
+  (value_to_term : forall {k}, value k -> term).
                         (* coercions from represenations of redexes and values *)
                         (* into terms *)
-  (init_ckind    : ckind)
-                        (* the starting nonterminal in the grammar of reduction *)
-                        (* contexts *)
-  (contract      : forall {k}, redex k -> option term).
-                        (* the contraction relations per each reduction kind *)
-End RED_SEM_BASE.
+End RED_MINI_LANG.
 
-Module RED_SEM_BASE_Notions (Import B : RED_SEM_BASE).
+Module RED_MINI_LANG_Notions (Import R : RED_MINI_LANG).
 
   Notation "ec :[ t ]" := (elem_plug t ec) (at level 0).
   Coercion  value_to_term : value >-> term.
@@ -50,11 +45,20 @@ Module RED_SEM_BASE_Notions (Import B : RED_SEM_BASE).
   (* is the elementary context that is closest to the hole. *)
   Definition context : ckind -> ckind -> Type := path elem_context_kinded.
 
+  Notation "[.]( k )" := (@empty _ elem_context_kinded k).
+
   (* The function for plugging a term into an arbitrary context *)
   (* I.e., (ec1=:ec2=:..ecn)[t] = ecn[..ec2[ec1:[t]]..] *)
   Definition plug t {k1 k2} (c : context k1 k2) : term :=
     path_action (@elem_plug) t c.
   Notation "c [ t ]" := (plug t c) (at level 0).
+
+  Definition plug_empty : forall t k, [.](k)[t] = t :=
+    @action_empty _ _ _ (@elem_plug).
+
+  Definition plug_compose : forall {k1 k2 k3} (c0 : context k1 k2) (c1 : context k3 k1) t,
+          (c0 ~+ c1)[t] = c1[c0[t]] :=
+    @action_compose _ _ _ (@elem_plug).
 
   (* Here we define what it means that an elementary context ec is a prefix of *)
   (* a term t. *) 
@@ -88,6 +92,20 @@ Module RED_SEM_BASE_Notions (Import B : RED_SEM_BASE).
   Definition dec (t : term) k (d : decomp k) : Prop := 
       t = d.
 
+End RED_MINI_LANG_Notions.
+
+Module Type RED_SEM_BASE.
+  Include RED_MINI_LANG.
+  Parameters
+  (init_ckind    : ckind)
+                        (* the starting nonterminal in the grammar of reduction *)
+                        (* contexts *)
+  (contract      : forall {k}, redex k -> option term).
+                        (* the contraction relations per each reduction kind *)
+End RED_SEM_BASE.
+
+Module RED_SEM_BASE_Notions (Import R : RED_SEM_BASE).
+  Include RED_MINI_LANG_Notions R.
 
   (* Here we define the reduction relation. Term t1 reduces to t2 wrt. k-strategy *)
   (* if t1 decomposes to r : redex k' and c : context k k', and r rewrites (wrt. *)

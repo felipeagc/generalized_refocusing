@@ -6,26 +6,10 @@ Require Import Util
 
 Module Type DET_RED_MINI_SEM.
 
-  Include RED_MINI_LANG.
+  Include RED_MINI_LANG_WD.
 
 
   Parameter contract : forall {k}, redex k -> option term.
-
-
-  Inductive decomp k : Type :=
-  | d_red : forall {k'}, redex k' -> context k k' -> decomp k
-  | d_val : value k -> decomp k.
-  Arguments d_val {k} _. Arguments d_red {k} {k'} _ _.
-
-  Definition decomp_to_term {k} (d : decomp k) :=
-      match d with
-      | d_val v   => value_to_term v
-      | d_red r c => c[r]
-      end.
-  Coercion decomp_to_term : decomp >-> term.
-
-  Definition dec (t : term) k (d : decomp k) : Prop := 
-    t = d.
 
   Definition reduce k t1 t2 := 
       exists {k'} (c : context k k') (r : redex k') t,  dec t1 k (d_red r c) /\
