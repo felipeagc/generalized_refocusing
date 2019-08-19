@@ -53,17 +53,7 @@ Module Type REF_STRATEGY (PR : PRE_REF_SEM) <: RED_STRATEGY PR.
 End REF_STRATEGY.
 
 
-
-
-
-Module Type RED_REF_SEM <: RED_SEM.
-
-  Declare Module R  : RED_SEM.
-  Declare Module ST : RED_STRATEGY_STEP R.
-
-  Include R.
-  Export ST.
-
+Module REF_Relations (Import R : RED_SEM) (Import ST : RED_STRATEGY_STEP R).
 
   Inductive refocus_in {k1} : forall {k2}, term -> context k1 k2 -> decomp k1 -> Prop :=
 
@@ -103,6 +93,18 @@ Module Type RED_REF_SEM <: RED_SEM.
   Scheme refocus_in_Ind  := Induction for refocus_in  Sort Prop
     with refocus_out_Ind := Induction for refocus_out Sort Prop.
 
+End REF_Relations.
+
+
+Module Type RED_REF_SEM <: RED_SEM.
+
+  Declare Module R  : RED_SEM.
+  Declare Module ST : RED_STRATEGY_STEP R.
+
+  Include R.
+  Export ST.
+
+  Include REF_Relations R ST.
 
   Axioms
   (refocus_ed_val_eqv_refocus_out :                         forall {k1 k2} (v : value k2)
@@ -239,47 +241,7 @@ Module RedRefSem (PR : PRE_REF_SEM) (ST : REF_STRATEGY PR) <: RED_REF_SEM.
   End R.
 
   Include R.
-
-
-  Inductive refocus_in {k1} : forall {k2}, term -> context k1 k2 -> decomp k1 -> Prop :=
-
-  | ri_red  : forall t {k2} (c : context k1 k2) r,
-                dec_term t k2 = ed_red r -> 
-                refocus_in t c (d_red r c)
-  | ri_val  : forall t {k2} (c : context k1 k2) d v,
-                dec_term t k2 = ed_val v ->
-                refocus_out v c d ->
-                refocus_in t c d
-  | ri_step : forall t {k2} (c : context k1 k2) d t0
-                       {k3} (ec : elem_context_kinded k2 k3),
-               dec_term t k2 = ed_dec k3 t0 ec ->
-               refocus_in t0 (ec=:c) d ->
-               refocus_in t c d
-
-  with refocus_out {k1} : forall {k2}, value k2 -> context k1 k2 -> decomp k1 -> Prop :=
-
-  | ro_end  : forall (v : value k1),
-                refocus_out v [.] (d_val v)
-  | ro_red  : forall {k2 k2'} (ec : elem_context_kinded k2 k2') (c : context k1 k2)
-                                                                       (v : value k2') r,
-                dec_context ec v = ed_red r ->
-                refocus_out v (ec=:c) (d_red r c)
-  | ro_val  : forall {k2 k2'} (ec : elem_context_kinded k2 k2') (c  : context k1 k2)
-                                                                    (v : value k2') d v0,
-                dec_context ec v = ed_val v0 ->
-                refocus_out v0 c d ->
-                refocus_out v (ec=:c) d
-  | ro_step : forall {k2 k2'}  (ec : elem_context_kinded k2 k2') (c : context k1 k2)
-                                                                      (v : value k2') d t
-                {k2''} (ec0 : elem_context_kinded k2 k2''),
-                dec_context ec v = ed_dec k2'' t ec0 ->
-                refocus_in t (ec0=:c) d ->
-                refocus_out v (ec=:c) d.
-
-  Scheme refocus_in_Ind  := Induction for refocus_in  Sort Prop
-    with refocus_out_Ind := Induction for refocus_out Sort Prop.
-
-
+  Include REF_Relations R ST.
 
   Lemma refocus_in_correct :                      forall {k1 k2} t (c : context k1 k2) d,
       refocus_in t c d -> c[t] = d.

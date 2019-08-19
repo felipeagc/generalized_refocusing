@@ -1,7 +1,7 @@
 Require Import path
                reduction_semantics.
 
-Module RED_STRATEGY_STEP_Notions (Import R : RED_SEM_BASE).
+Module RED_STRATEGY_STEP_Notions (Import R : RED_MINI_LANG).
 
   (* Up arrow and down arrow functions return that the input term is *)
   (* either a redex (ed_red) or a value (ed_val) or that we have to  *)
