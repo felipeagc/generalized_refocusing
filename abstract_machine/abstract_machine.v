@@ -1,6 +1,6 @@
 Require Import Util
-               Entropy.
-Require Export rewriting_system.
+               Entropy
+               rewriting_system.
 
 
 

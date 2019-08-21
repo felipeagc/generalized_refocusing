@@ -146,9 +146,9 @@ Module REF_LANG_Help.
           constructor; auto
       ).
 
-  Context `{term : Type}.
-  Context `{immediate_subterm : term -> term -> Prop}.
-  Context `{wf_immediate_subterm : well_founded immediate_subterm}.
+  Parameter term : Type.
+  Parameter immediate_subterm : term -> term -> Prop.
+  Parameter wf_immediate_subterm : well_founded immediate_subterm.
 
   Ltac prove_sto_wf :=
       exact (wf_clos_trans_l _ _ wf_immediate_subterm).
@@ -173,14 +173,14 @@ End REF_LANG_Help.
 (*** Implementation part ***)
 
 
-Module RedRefSem (PR : PRE_REF_SEM) (ST : REF_STRATEGY PR) <: RED_REF_SEM.
+Module RedRefSem (PR : PRE_REF_SEM) (ST' : REF_STRATEGY PR) <: RED_REF_SEM.
 
   Module RLF := RED_LANG_Facts PR.
   Import PR RLF.
 
 
 
-  Module ST := ST.
+  Module ST := ST'.
   Export ST.
 
   Module R <: RED_SEM.

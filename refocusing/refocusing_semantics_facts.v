@@ -7,10 +7,7 @@ Require Import reduction_languages_facts.
 
 Require Import EqdepFacts.
 
-Module RED_REF_SEM_Facts (R : RED_REF_SEM).
-
-  Module RF := RED_LANG_Facts R.
-  Import R RF.
+Module RED_REF_SEM_Facts (Import R' : RED_REF_SEM).
 
   Lemma refocus_in_is_pfunction :             forall t {k1 k2} (c : context k1 k2) d0 d1,
       refocus_in t c d0 -> refocus_in t c d1 -> d0 = d1.

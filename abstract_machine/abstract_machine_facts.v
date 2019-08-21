@@ -1,4 +1,5 @@
-Require Import Entropy 
+Require Import Entropy
+               rewriting_system
                abstract_machine.
 
 

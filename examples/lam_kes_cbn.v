@@ -3,7 +3,8 @@
 (*** Krivine machine example ***)
 
 
-Require Import List
+Require Import Arith
+               List
                Program
                Util
                refocusing_semantics.
@@ -346,8 +347,6 @@ Module Lam_KES_CBN_PreRefSem <: PRE_REF_SEM.
   Qed.
 
 
-  Require Import Arith.
-
   Lemma nth_error_safe :                                       forall {T} (l : list T) n,
       n < List.length l -> exists e, nth_error l n = Some e.
 
@@ -365,12 +364,8 @@ Module Lam_KES_CBN_PreRefSem <: PRE_REF_SEM.
   Qed.
 
 
-
   Lemma contract_closed :                                       forall {k} (r : redex k),
       closed r -> exists t, contract r = Some t /\ closed t.
-
-  Let Ar : forall m n, S (m + n) = m + S n.
-  Proof. auto with arith. Qed.
 
   Proof with eauto.
     intros k r H.
@@ -382,7 +377,7 @@ Module Lam_KES_CBN_PreRefSem <: PRE_REF_SEM.
       simpl; intuition;
           inversion H0; subst;
           destruct l0; simpl in H3;
-          try rewrite Ar in H3;
+          try rewrite plus_n_Sm in H3;
           inversion H4; subst;
       solve [repeat (constructor; auto)].
 
@@ -659,11 +654,12 @@ Require Import refocusing_machine.
 
 Module EAKrivineMachine := RefEvalApplyMachine Lam_KES_CBN_RefSem.
 
+Require Import rewriting_system
+               refocusing_machine_facts
+               List. (* needed to patch a module bug in Coq *)
 
 Module Example.
 
-  Require Import refocusing_machine_facts
-                 List. (* needed to patch a module bug in Coq *)
 
   Module AMF := RefEvalApplyMachine_Facts Lam_KES_CBN_RefSem EAKrivineMachine.
   Import Lam_KES_CBN_RefSem EAKrivineMachine AMF.
@@ -674,7 +670,7 @@ Module Example.
   Proof. repeat constructor; simpl; auto. Qed.
 
 
-  Variables
+  Parameters
   (t        : term)
   (t_closed : closed t).
 

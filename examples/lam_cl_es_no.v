@@ -1,15 +1,12 @@
 Require Import Program
                Util
                refocusing_semantics.
-
-
+Require Export Peano_dec Compare_dec.
 
 Open Scope list.
 
 
 Module Lam_ClES_NO_PreRefSem <: PRE_REF_SEM.
-
-  Require Export Peano_dec Compare_dec.
 
 
   Inductive term0 :=

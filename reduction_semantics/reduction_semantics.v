@@ -1,7 +1,8 @@
 
 Require Import Relations
-               Program.
-Require Export rewriting_system path.
+               Program
+               rewriting_system.
+Require Export path.
 
 Module Type RED_MINI_LANG.
   Parameters

@@ -6,13 +6,13 @@ Require Import Entropy
                reduction_semantics
                refocusing_semantics.
 Require Export abstract_machine.
+Require rewriting_system.
 
 
 
 
-Module Type REF_EVAL_APPLY_MACHINE (R : RED_REF_SEM) <: DET_ABSTRACT_MACHINE.
 
-  Import R ST.
+Module Type REF_EVAL_APPLY_MACHINE (Import R' : RED_REF_SEM) <: DET_ABSTRACT_MACHINE.
 
   Notation ick     := init_ckind.
   Definition term  := term.
@@ -73,9 +73,10 @@ Module Type REF_EVAL_APPLY_MACHINE (R : RED_REF_SEM) <: DET_ABSTRACT_MACHINE.
         c_apply (ec=:c) v → c_eval t (ec0=:c)
 
   where "st1 → st2" := (trans st1 st2).
-  Definition transition := trans.
 
   End S1.
+  Import rewriting_system.
+  Definition transition := trans.
 
 
   Definition dnext_conf (st : configuration) : option configuration :=
@@ -304,10 +305,9 @@ Require Import Util
                reduction_languages_facts.
 
 
-Module RefEvalApplyMachine (R : RED_REF_SEM) <: REF_EVAL_APPLY_MACHINE R.
+Module RefEvalApplyMachine (Import R' : RED_REF_SEM) <: REF_EVAL_APPLY_MACHINE R'.
 
-  Module RF := RED_LANG_Facts R.
-  Import R RF ST.
+  Include RED_LANG_Facts R'.
 
 
   Notation   ick   := init_ckind.
@@ -375,9 +375,10 @@ Module RefEvalApplyMachine (R : RED_REF_SEM) <: REF_EVAL_APPLY_MACHINE R.
         c_apply (ec=:c) v → c_eval t (ec0=:c)
 
   where "st1 → st2" := (trans st1 st2).
-  Definition transition := trans.
 
   End S1.
+  Import rewriting_system.
+  Definition transition := trans.
 
   Definition dnext_conf (st : configuration) : option configuration :=
       match st with

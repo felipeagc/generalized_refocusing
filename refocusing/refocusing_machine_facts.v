@@ -11,16 +11,12 @@ Require Import Program
         Import rewriting_system.Paths.
 
 
-
-
 Local Open Scope vector.
 
-Module RefEvalApplyMachine_Facts (R   : RED_REF_SEM) 
-                                       (EAM : REF_EVAL_APPLY_MACHINE R).
+Module RefEvalApplyMachine_Facts (Import R'  : RED_REF_SEM)
+                                 (Import EAM : REF_EVAL_APPLY_MACHINE R').
 
-  Module RLF := RED_LANG_Facts R.
-  Module RF  := RED_REF_SEM_Facts R.
-  Import R.R R RLF RF ST EAM.
+  Include RED_LANG_Facts R'.
 
 
   Notation eam := EAM.rws.
