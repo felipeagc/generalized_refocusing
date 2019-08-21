@@ -9,10 +9,7 @@ Require Export abstract_machine.
 Require rewriting_system.
 
 
-
-
-
-Module Type REF_EVAL_APPLY_MACHINE (Import R' : RED_REF_SEM) <: DET_ABSTRACT_MACHINE.
+Module RefEvalApplyMachineTypes (Import R' : RED_REF_SEM).
 
   Notation ick     := init_ckind.
   Definition term  := term.
@@ -103,6 +100,22 @@ Module Type REF_EVAL_APPLY_MACHINE (Import R' : RED_REF_SEM) <: DET_ABSTRACT_MAC
   { transition := transition }.
 
 
+  Class SafeRegion (P : configuration -> Prop) :=
+  {
+      preservation :                                                      forall st1 st2,
+          P st1  ->  st1 → st2  ->  P st2;
+      progress :                                                              forall st1,
+          P st1  ->  is_final st1 \/ exists st2, st1 → st2
+  }.
+
+End RefEvalApplyMachineTypes.
+
+
+Module Type REF_EVAL_APPLY_MACHINE (Import R' : RED_REF_SEM) <: DET_ABSTRACT_MACHINE.
+
+  Include RefEvalApplyMachineTypes R'.
+  Import rewriting_system.
+
   Axioms
   (final_correct :                                                             forall st,
        final st <> None -> ~exists st', st → st')
@@ -111,14 +124,6 @@ Module Type REF_EVAL_APPLY_MACHINE (Import R' : RED_REF_SEM) <: DET_ABSTRACT_MAC
   (dnext_is_next :                                                            forall e c,
       next_conf e c = dnext_conf c).
 
-
-  Class SafeRegion (P : configuration -> Prop) :=
-  {
-      preservation :                                                      forall st1 st2,
-          P st1  ->  st1 → st2  ->  P st2;
-      progress :                                                              forall st1,
-          P st1  ->  is_final st1 \/ exists st2, st1 → st2
-  }.
 
 End REF_EVAL_APPLY_MACHINE.
 
@@ -308,102 +313,13 @@ Require Import Util
 Module RefEvalApplyMachine (Import R' : RED_REF_SEM) <: REF_EVAL_APPLY_MACHINE R'.
 
   Include RED_LANG_Facts R'.
+  Include RefEvalApplyMachineTypes R'.
+  Import rewriting_system.
 
 
-  Notation   ick   := init_ckind.
-  Definition term  := term.
-  Definition value := value ick.
-  Coercion   value_to_term (v : value) := (R.value_to_term v) : term.
-
-
-  Inductive conf : Type :=
-  | c_eval  : term -> forall {k}, context init_ckind k -> conf
-  | c_apply : forall {k}, context init_ckind k -> R.value k -> conf.
-  Definition configuration := conf.
-
-
-  Definition load t                    : configuration := c_eval t [.].
-  
   Definition value_to_conf (v : value) : configuration := 
       c_apply [.] v.
   Coercion value_to_conf : value >-> configuration.
-
-  Definition final (c : configuration) : option value := 
-      match c with
-      | c_apply [.] v => Some v 
-      | _             => None
-      end.
-  Definition decompile (c : configuration) : term :=
-      match c with
-      | c_eval t c  => c[t]
-      | c_apply c v => c[v]
-      end.
-  Definition is_final c := exists v, final c = Some v.
-
-
-  Section S1.
-
-  Local Reserved Notation "c1 → c2" (no associativity, at level 70).
-
-  Inductive trans : configuration -> configuration -> Prop :=
-
-  | t_red :                                        forall t {k} (c : context ick k) r t0,
-        dec_term t k = ed_red r -> 
-        contract r = Some t0 ->
-        c_eval t c → c_eval t0 c
-
-  | t_val :                                           forall t {k} (c : context ick k) v,
-        dec_term t k = ed_val v ->
-        c_eval t c → c_apply c v
-
-  | t_term :    forall t {k} (c : context ick k) {t0 k'} {ec : elem_context_kinded k k'},
-        dec_term t k = ed_dec k' t0 ec ->
-        c_eval t c → c_eval t0 (ec=:c)
-
-  | t_cred :     forall {k k'} (ec : elem_context_kinded k k') (c : context ick k) v r t,
-        dec_context ec v = ed_red r -> 
-        contract r = Some t ->
-        c_apply (ec=:c) v → c_eval t c
-
-  | t_cval :      forall {k k'} (ec : elem_context_kinded k k') (c : context ick k) v v0,
-        dec_context ec v = ed_val v0 ->
-        c_apply (ec=:c) v → c_apply c v0
-
-  | t_cterm :                           forall {k k' k''} (ec : elem_context_kinded k k')
-                               (ec0 : elem_context_kinded k k'') (c : context ick k) v t,
-        dec_context ec v = ed_dec k'' t ec0 ->
-        c_apply (ec=:c) v → c_eval t (ec0=:c)
-
-  where "st1 → st2" := (trans st1 st2).
-
-  End S1.
-  Import rewriting_system.
-  Definition transition := trans.
-
-  Definition dnext_conf (st : configuration) : option configuration :=
-      match st with
-      | @c_eval t k c  => 
-            match dec_term t k with
-            | ed_red r     => option_map (fun t' => c_eval t' c) (contract r)
-            | ed_val v     => Some (c_apply c v)
-            | ed_dec _ t ec => Some (c_eval t (ec=:c))
-             end
-      | c_apply (pcons ec c) v =>
-            match dec_context ec v with
-            | ed_red r     => option_map (fun t' => c_eval t' c) (contract r)
-            | ed_val v     => Some (c_apply c v)
-            | ed_dec _ t ec => Some (c_eval t (ec=:c))
-            end
-      | c_apply [.] _ => 
-            None
-      end.
-
-  Definition next_conf (_ : entropy) := dnext_conf.
-
-
-  Instance rws : REWRITING_SYSTEM configuration :=
-  { transition := transition }.
-
 
   Lemma final_correct :                                                         forall c,
        final c <> None -> ~exists c', c → c'.
@@ -492,15 +408,6 @@ Module RefEvalApplyMachine (Import R' : RED_REF_SEM) <: REF_EVAL_APPLY_MACHINE R
   Proof.
     auto.
   Qed.
-
-
-  Class SafeRegion (P : configuration -> Prop) :=
-  { 
-      preservation :                                                      forall st1 st2,
-          P st1  ->  st1 → st2  ->  P st2;
-      progress :                                                              forall st1,
-          P st1  ->  is_final st1 \/ exists st2, st1 → st2
-  }.
 
 End RefEvalApplyMachine.
 
