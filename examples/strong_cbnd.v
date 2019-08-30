@@ -93,28 +93,10 @@ Module Lam_cbnd_PreRefSem <: PRE_REF_SEM.
   Notation " 'λ'  x , t " := (Lam x t) (at level 50).
 
 
-  Inductive (* term that is decomposed as active variable in context *)
-  in_ctx : ck -> var -> vars -> Type :=
-  | inctxVar : forall {k} x, in_ctx k x ⋄ (* x ∈ cˣ_{}_k *)
-  | inctxApp_l : forall {k} x xs,
-      ~ In x xs -> in_ctx E x xs -> expr ->
-      in_ctx k x xs (* cˣ_{xs}_E @ e ∈ cˣ_{xs}_k *)
-  | inctxApp_r : forall {k} x xs ys,
-      ~ In x (xs ++ ys) -> struct ys ->
-      in_ctx C x xs -> in_ctx k x (ys +++ xs) (* s_{ys} @ cˣ_{xs}_C ∈ cˣ_{ys+xs}_k *)
-  | inctxLam : forall x y xs,
-      x <> y -> in_ctx C y xs ->
-      in_ctx C y (set_remove eq_var x xs) (* λ x. cʸ_{xs}_C ∈ cʸ_{xs\x}_C *)
-  | inctxSub : forall {k} x y xs,
-      x <> y -> ~In x xs -> in_ctx k y xs -> expr ->
-      in_ctx k y xs  (* let x = e in cʸ_{xs}_k ∈ cʸ_{xs}_k *)
-  | inctxNdSub : forall {k} x y xs zs,
-      x <> y -> ~ In y xs -> struct xs -> in_ctx k y zs ->
-      in_ctx k y (xs +++ (set_remove eq_var x zs))
-  (* let x := s_{xs} in cʸ_{zs}_k ∈ cʸ_{xs+zs\x}_k *)
-  | inctxNdSub2 : forall {k} y xs,
-      var -> in_ctx E y xs -> expr -> in_ctx k y xs
-  (* let x := cʸ_{xs}_E in e ∈ cʸ_{xs}_k *)
+  Inductive (* normal forms - parameterized by minimal set of frozen variables *)
+  normal : vars -> Type :=
+  | nf_struct     : forall xs,        struct xs -> normal xs (*  s_{xs} ∈ n_{xs} *)
+  | nf_lam_in_ctx : forall xs, lambda_normal xs -> normal xs (* ln_{xs} ∈ n_{xs} *)
 
   with   (* structures - parameterized by minimal set of frozen variables *)
   struct : vars -> Type :=
@@ -139,13 +121,30 @@ Module Lam_cbnd_PreRefSem <: PRE_REF_SEM.
   | lnfNdSub : forall x ys zs xs,
       in_split x ys xs -> NoDup ys -> ~ In x ys ->
       struct zs -> lambda_normal xs ->
-      lambda_normal (zs +++ ys) (* let x:= s_{zs} in ln_xs ∈ ln_{zs+xs\x} *)
+      lambda_normal (zs +++ ys) (* let x:= s_{zs} in ln_xs ∈ ln_{zs+xs\x} *).
 
-  with (* normal forms - parameterized by minimal set of frozen variables *)
-  normal : vars -> Type :=
-  | nf_struct : forall xs, struct xs -> normal xs (* s_{xs} ∈ n_{xs} *)
-  | nf_lam_in_ctx : forall xs, lambda_normal xs -> normal xs (* ln_{xs} ∈ n_{xs} *).
-
+  Inductive (* term that is decomposed as active variable in context *)
+  in_ctx : ck -> var -> vars -> Type :=
+  | inctxVar : forall {k} x, in_ctx k x ⋄ (* x ∈ cˣ_{}_k *)
+  | inctxApp_l : forall {k} x xs,
+      ~ In x xs -> in_ctx E x xs -> expr ->
+      in_ctx k x xs (* cˣ_{xs}_E @ e ∈ cˣ_{xs}_k *)
+  | inctxApp_r : forall {k} x xs ys,
+      ~ In x (xs ++ ys) -> struct ys ->
+      in_ctx C x xs -> in_ctx k x (ys +++ xs) (* s_{ys} @ cˣ_{xs}_C ∈ cˣ_{ys+xs}_k *)
+  | inctxLam : forall x y xs,
+      x <> y -> in_ctx C y xs ->
+      in_ctx C y (set_remove eq_var x xs) (* λ x. cʸ_{xs}_C ∈ cʸ_{xs\x}_C *)
+  | inctxSub : forall {k} x y xs,
+      x <> y -> ~In x xs -> in_ctx k y xs -> expr ->
+      in_ctx k y xs  (* let x = e in cʸ_{xs}_k ∈ cʸ_{xs}_k *)
+  | inctxNdSub : forall {k} x y xs zs,
+      x <> y -> ~ In y xs -> struct xs -> in_ctx k y zs ->
+      in_ctx k y (xs +++ (set_remove eq_var x zs))
+  (* let x := s_{xs} in cʸ_{zs}_k ∈ cʸ_{xs+zs\x}_k *)
+  | inctxNdSub2 : forall {k} y xs,
+      var -> in_ctx E y xs -> expr -> in_ctx k y xs
+  (* let x := cʸ_{xs}_E in e ∈ cʸ_{xs}_k *).
 
   Scheme struct_Ind   := Induction for struct Sort Prop
     with normal_Ind := Induction for normal Sort Prop
@@ -153,34 +152,45 @@ Module Lam_cbnd_PreRefSem <: PRE_REF_SEM.
 
   Combined Scheme struct_and_normals_ind from struct_Ind, normal_Ind, lambda_normal_Ind.
 
-  Scheme struct2_Ind   := Induction for struct Sort Prop
-    with normal2_Ind := Induction for normal Sort Prop
-    with lambda_normal2_Ind := Induction for lambda_normal Sort Prop
-    with in_ctx_Ind := Induction for in_ctx Sort Prop.
-
-
-
-  (* notation for iteration of explicit substitutions with simple let *)
-  Inductive sub : Type :=
-  | subMt : sub
-  | subCons : var -> expr -> sub -> sub.
-
-  (* notation for iteration of explicit substitutions with two kinds of lets*)
-  Inductive sub_ext : Type :=
-  | subSimple : sub -> sub_ext
-  | subNd : var -> expr -> sub_ext -> sub_ext.
-
-  Fixpoint sub_to_term (s : sub) (t : term) :=
+  Fixpoint struct_to_term {xs} (s : struct xs) : term :=
     match s with
-    | subMt => t
-    | subCons x r s' => Let x r (sub_to_term s' t)
+    | sVar x => # x
+    | sApp xs ys s n => (struct_to_term s) @ (normal_to_term n)
+    | sSub x ys _ e s => Let x e (struct_to_term s)
+    | sNdSub x ys _ _ _ _ _ s sx => LetNd x (struct_to_term s) (struct_to_term sx)
+    end
+
+  with
+  lambda_normal_to_term {xs} ( n : lambda_normal xs) : term :=
+    match n with
+    | lnfLam x xs n => λ x, (normal_to_term n)
+    | lnfSub x ys _ e n => Let x e (lambda_normal_to_term n)
+    | lnfNdSub x ys _ _ _ _ _ s n => LetNd x (struct_to_term s) (lambda_normal_to_term n)
+    end
+  with
+  normal_to_term {xs} (n : normal xs) : term :=
+    match n with
+    | nf_struct _ s => struct_to_term s
+    | nf_lam_in_ctx _ ln => lambda_normal_to_term ln
     end.
 
-  Fixpoint sub_ext_to_term (s : sub_ext) (t : term) :=
-    match s with
-    | subSimple s => sub_to_term s t
-    | subNd x r s' => LetNd x r (sub_ext_to_term s' t)
+  Definition struct_to_normal {xs} (s : struct xs) : normal xs := nf_struct xs s.
+
+  Coercion struct_to_normal : struct >-> normal.
+  Coercion normal_to_term : normal >-> term.
+  Coercion struct_to_term : struct >-> term.
+
+  Fixpoint nf_to_term {k} {x} {xs} ( neu : in_ctx k x xs) {struct neu}: term :=
+    match neu with
+    | inctxVar x => #x
+    | inctxApp_l x xs _ n e => (nf_to_term n) @ e
+    | inctxApp_r x xs ys _ s neu' => (struct_to_term s) @ (nf_to_term neu')
+    | inctxLam x y xs  _ neu' => λ x, (nf_to_term neu')
+    | inctxSub x y xs _ _ n e => Let x e (nf_to_term n)
+    | inctxNdSub x y xs _  _ _ s n => LetNd x (struct_to_term s) (nf_to_term n)
+    | inctxNdSub2 y xs x ny nx => LetNd x  (nf_to_term ny) nx
     end.
+  Coercion nf_to_term : in_ctx >-> term.
 
   (* in terms cˣ_{xs}_k, x ∉ xs *)
   Lemma inctx_var_notin_frozen :
@@ -206,47 +216,27 @@ Module Lam_cbnd_PreRefSem <: PRE_REF_SEM.
 
   Hint Resolve inctx_var_notin_frozen.
 
+  (* notation for iteration of explicit substitutions with simple let *)
+  Inductive sub : Type :=
+  | subMt : sub
+  | subCons : var -> expr -> sub -> sub.
 
-  Fixpoint struct_to_term {xs} (s : struct xs) : term :=
+  (* notation for iteration of explicit substitutions with two kinds of lets*)
+  Inductive sub_ext : Type :=
+  | subSimple : sub -> sub_ext
+  | subNd : var -> expr -> sub_ext -> sub_ext.
+
+  Fixpoint sub_to_term (s : sub) (t : term) :=
     match s with
-    | sVar x => # x
-    | sApp xs ys s n => (struct_to_term s) @ (normal_to_term n)
-    | sSub x ys _ e s => Let x e (struct_to_term s)
-    | sNdSub x ys _ _ _ _ _ s sx => LetNd x (struct_to_term s) (struct_to_term sx)
-    end
-
-  with
-  lambda_normal_to_term {xs} ( n : lambda_normal xs) : term :=
-    match n with
-    | lnfLam x xs n => λ x, (normal_to_term n)
-    | lnfSub x ys _ e n => Let x e (lambda_normal_to_term n)
-    | lnfNdSub x ys _ _ _ _ _ s n => LetNd x (struct_to_term s) (lambda_normal_to_term n)
-    end
-  with
-  normal_to_term {xs} (n : normal xs) : term :=
-    match n with
-    | nf_struct _ s => struct_to_term s
-    | nf_lam_in_ctx _ ln => lambda_normal_to_term ln
+    | subMt => t
+    | subCons x r s' => Let x r (sub_to_term s' t)
     end.
 
-  Fixpoint
-    nf_to_term {k} {x} {xs} ( neu : in_ctx k x xs) {struct neu}: term :=
-    match neu with
-    | inctxVar x => #x
-    | inctxApp_l x xs _ n e => (nf_to_term n) @ e
-    | inctxApp_r x xs ys _ s neu' => (struct_to_term s) @ (nf_to_term neu')
-    | inctxLam x y xs  _ neu' => λ x, (nf_to_term neu')
-    | inctxSub x y xs _ _ n e => Let x e (nf_to_term n)
-    | inctxNdSub x y xs _  _ _ s n => LetNd x (struct_to_term s) (nf_to_term n)
-    | inctxNdSub2 y xs x ny nx => LetNd x  (nf_to_term ny) nx
+  Fixpoint sub_ext_to_term (s : sub_ext) (t : term) :=
+    match s with
+    | subSimple s => sub_to_term s t
+    | subNd x r s' => LetNd x r (sub_ext_to_term s' t)
     end.
-
-  Definition struct_to_normal {xs} (s : struct xs) : normal xs := nf_struct xs s.
-
-  Coercion struct_to_normal : struct >-> normal.
-  Coercion normal_to_term : normal >-> term.
-  Coercion nf_to_term : in_ctx >-> term.
-  Coercion struct_to_term : struct >-> term.
 
   (* values *)
   Inductive val : ckind -> Type :=
@@ -383,7 +373,7 @@ Module Lam_cbnd_PreRefSem <: PRE_REF_SEM.
 
   Hint Resolve inctx_E_not_sub_lambda.
 
-Lemma struct_and_normals_to_term_injective :
+  Lemma struct_and_normals_to_term_injective :
     (forall {xs} (n : struct xs) {ys} (n' : struct ys),
       struct_to_term n = struct_to_term n' -> n ~= n' /\ xs = ys) /\
     (forall {xs} (n : normal xs) {ys} (n' : normal ys),
@@ -428,48 +418,41 @@ Lemma struct_and_normals_to_term_injective :
       normal_to_term n = normal_to_term n' -> n ~= n' /\ xs = ys.
   Proof. apply struct_and_normals_to_term_injective. Qed.
 
+  Lemma struct_and_normals_NoDup :
+    (forall {xs} (n : struct xs), NoDup xs) /\
+    (forall {xs} (n : normal xs), NoDup xs) /\
+    (forall {xs} (n : lambda_normal xs), NoDup xs).
+  Proof with eauto.
+    apply struct_and_normals_ind; intros...
+    repeat constructor...
+  Qed.
+
   Lemma struct_NoDup :
     forall {xs} (n : struct xs),
       NoDup xs.
-  Proof with eauto.
-    induction 1 using struct_Ind with
-        (P:= fun xs n => NoDup xs)
-        (P1:= fun xs n =>     NoDup xs)
-        (P0:= fun xs n =>     NoDup xs); intros; try repeat constructor...
-  Qed.
+  Proof. apply struct_and_normals_NoDup. Qed.
 
   Lemma lambda_normal_NoDup :
     forall {xs} (n : lambda_normal xs),
       NoDup xs.
-  Proof with eauto.
-    induction 1 using lambda_normal_Ind with (P:= fun xs n => NoDup xs)
-                                        (P1:= fun xs n =>     NoDup xs)
-                                        (P0:= fun xs n =>     NoDup xs); intros...
-    repeat constructor...
-  Qed.
+  Proof. apply struct_and_normals_NoDup. Qed.
 
   Lemma normal_NoDup :
     forall {xs} (n : normal xs),
       NoDup xs.
-  Proof with eauto.
-    induction 1 using normal_Ind with (P:= fun xs n => NoDup xs)
-                                      (P1:= fun xs n =>     NoDup xs)
-                                      (P0:= fun xs n =>     NoDup xs); intros...
-    repeat constructor...
-  Qed.
+  Proof. apply struct_and_normals_NoDup. Qed.
+
+  Hint Resolve struct_NoDup.
 
   Lemma neutral_NoDup :
     forall {k} {x} {xs} (n : in_ctx k x xs),
       NoDup xs.
-  Proof with eauto.
-    induction 1 using in_ctx_Ind with (P:= fun xs n => NoDup xs)
-                                      (P1:= fun xs n =>     NoDup xs)
-                                      (P0:= fun xs n =>     NoDup xs); intros...
-    repeat constructor...
+  Proof with auto.
+    apply in_ctx_ind; intros...
     constructor.
   Qed.
 
-  Hint Resolve struct_NoDup lambda_normal_NoDup normal_NoDup neutral_NoDup.
+  Hint Resolve lambda_normal_NoDup normal_NoDup neutral_NoDup.
 
   (* if cˣ_{ys}_k = n_{xs} then x ∈ xs *)
   Lemma normal_vars_neutral :
