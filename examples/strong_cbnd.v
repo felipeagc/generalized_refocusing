@@ -123,34 +123,11 @@ Module Lam_cbnd_PreRefSem <: PRE_REF_SEM.
       struct zs -> lambda_normal xs ->
       lambda_normal (zs +++ ys) (* let x:= s_{zs} in ln_xs ∈ ln_{zs+xs\x} *).
 
-  Inductive (* term that is decomposed as active variable in context *)
-  in_ctx : ck -> var -> vars -> Type :=
-  | inctxVar : forall {k} x, in_ctx k x ⋄ (* x ∈ cˣ_{}_k *)
-  | inctxApp_l : forall {k} x xs,
-      ~ In x xs -> in_ctx E x xs -> expr ->
-      in_ctx k x xs (* cˣ_{xs}_E @ e ∈ cˣ_{xs}_k *)
-  | inctxApp_r : forall {k} x xs ys,
-      ~ In x (xs ++ ys) -> struct ys ->
-      in_ctx C x xs -> in_ctx k x (ys +++ xs) (* s_{ys} @ cˣ_{xs}_C ∈ cˣ_{ys+xs}_k *)
-  | inctxLam : forall x y xs,
-      x <> y -> in_ctx C y xs ->
-      in_ctx C y (set_remove eq_var x xs) (* λ x. cʸ_{xs}_C ∈ cʸ_{xs\x}_C *)
-  | inctxSub : forall {k} x y xs,
-      x <> y -> ~In x xs -> in_ctx k y xs -> expr ->
-      in_ctx k y xs  (* let x = e in cʸ_{xs}_k ∈ cʸ_{xs}_k *)
-  | inctxNdSub : forall {k} x y xs zs,
-      x <> y -> ~ In y xs -> struct xs -> in_ctx k y zs ->
-      in_ctx k y (xs +++ (set_remove eq_var x zs))
-  (* let x := s_{xs} in cʸ_{zs}_k ∈ cʸ_{xs+zs\x}_k *)
-  | inctxNdSub2 : forall {k} y xs,
-      var -> in_ctx E y xs -> expr -> in_ctx k y xs
-  (* let x := cʸ_{xs}_E in e ∈ cʸ_{xs}_k *).
-
   Scheme struct_Ind   := Induction for struct Sort Prop
     with normal_Ind := Induction for normal Sort Prop
     with lambda_normal_Ind := Induction for lambda_normal Sort Prop.
 
-  Combined Scheme struct_and_normals_ind from struct_Ind, normal_Ind, lambda_normal_Ind.
+  Combined Scheme all_normal_forms_ind from struct_Ind, normal_Ind, lambda_normal_Ind.
 
   Fixpoint struct_to_term {xs} (s : struct xs) : term :=
     match s with
@@ -180,7 +157,30 @@ Module Lam_cbnd_PreRefSem <: PRE_REF_SEM.
   Coercion normal_to_term : normal >-> term.
   Coercion struct_to_term : struct >-> term.
 
-  Fixpoint nf_to_term {k} {x} {xs} ( neu : in_ctx k x xs) {struct neu}: term :=
+  (* term that is decomposed as active variable in context *)
+  Inductive in_ctx : ck -> var -> vars -> Type :=
+  | inctxVar : forall {k} x, in_ctx k x ⋄ (* x ∈ cˣ_{}_k *)
+  | inctxApp_l : forall {k} x xs,
+      ~ In x xs -> in_ctx E x xs -> expr ->
+      in_ctx k x xs (* cˣ_{xs}_E @ e ∈ cˣ_{xs}_k *)
+  | inctxApp_r : forall {k} x xs ys,
+      ~ In x (xs ++ ys) -> struct ys ->
+      in_ctx C x xs -> in_ctx k x (ys +++ xs) (* s_{ys} @ cˣ_{xs}_C ∈ cˣ_{ys+xs}_k *)
+  | inctxLam : forall x y xs,
+      x <> y -> in_ctx C y xs ->
+      in_ctx C y (set_remove eq_var x xs) (* λ x. cʸ_{xs}_C ∈ cʸ_{xs\x}_C *)
+  | inctxSub : forall {k} x y xs,
+      x <> y -> ~In x xs -> in_ctx k y xs -> expr ->
+      in_ctx k y xs  (* let x = e in cʸ_{xs}_k ∈ cʸ_{xs}_k *)
+  | inctxNdSub : forall {k} x y xs zs,
+      x <> y -> ~ In y xs -> struct xs -> in_ctx k y zs ->
+      in_ctx k y (xs +++ (set_remove eq_var x zs))
+  (* let x := s_{xs} in cʸ_{zs}_k ∈ cʸ_{xs+zs\x}_k *)
+  | inctxNdSub2 : forall {k} y xs,
+      var -> in_ctx E y xs -> expr -> in_ctx k y xs
+  (* let x := cʸ_{xs}_E in e ∈ cʸ_{xs}_k *).
+
+  Fixpoint nf_to_term {k} {x} {xs} (neu : in_ctx k x xs) {struct neu} : term :=
     match neu with
     | inctxVar x => #x
     | inctxApp_l x xs _ n e => (nf_to_term n) @ e
@@ -373,74 +373,71 @@ Module Lam_cbnd_PreRefSem <: PRE_REF_SEM.
 
   Hint Resolve inctx_E_not_sub_lambda.
 
-  Lemma struct_and_normals_to_term_injective :
-    (forall {xs} (n : struct xs) {ys} (n' : struct ys),
-      struct_to_term n = struct_to_term n' -> n ~= n' /\ xs = ys) /\
-    (forall {xs} (n : normal xs) {ys} (n' : normal ys),
-      normal_to_term n = normal_to_term n' -> n ~= n' /\ xs = ys) /\
-    (forall {xs} (n : lambda_normal xs) {ys} (n' : lambda_normal ys),
-      lambda_normal_to_term n = lambda_normal_to_term n' -> n ~= n' /\ xs = ys).
-  Proof with eauto.
-    apply struct_and_normals_ind;
+  Definition forall_normal_forms
+   (pred :
+      forall (nf_type : (vars -> Type))
+             (to_term : forall {xs}, nf_type xs -> term), Prop) : Prop :=
+    pred struct (@struct_to_term) /\
+    pred normal (@normal_to_term) /\
+    pred lambda_normal (@lambda_normal_to_term).
+
+  Lemma all_normal_forms_to_term_injective :
+    forall_normal_forms (fun normal_form to_term =>
+      forall {xs} (n : normal_form xs) {ys} (n' : normal_form ys),
+        to_term _ n = to_term _ n' -> n ~= n' /\ xs = ys).
+  Proof.
+    apply all_normal_forms_ind;
     destruct n'; try discriminate;
     intros Heq; inversion Heq; subst.
-    6-7: eelim struct_not_lambda...
+    6-7: eelim struct_not_lambda; eauto.
     all: try eelim H; try eelim H0; try eelim H1; try eelim H2; intros; eauto; split; dep_subst; eauto.
     all: try (assert (hh:=in_split_inv _ _ _ _ i i0); subst; auto).
-    +
-      rewrite proof_irrelevance with _ n n0...
-    +
-      rewrite proof_irrelevance with _ i  i0.
-      rewrite proof_irrelevance with _ n2  n0.
-      rewrite proof_irrelevance with _ n  n1...
-    +
-      rewrite proof_irrelevance with _ n  n0...
-    +
-      rewrite proof_irrelevance with _ i i0.
-      rewrite proof_irrelevance with _ n n1.
-      rewrite proof_irrelevance with _ n0 n2...
+    all: (repeat
+      match goal with
+        [H1: ?P, H2: ?P |- _] =>
+          remember(proof_irrelevance _ H1 H2); subst
+      end); auto.
   Qed.
 
   Lemma struct_to_term_injective :
     forall {xs} (n : struct xs) {ys} (n' : struct ys),
       struct_to_term n = struct_to_term n' -> n ~= n' /\ xs = ys.
-  Proof. apply struct_and_normals_to_term_injective. Qed.
+  Proof. apply all_normal_forms_to_term_injective. Qed.
 
   Hint Resolve struct_to_term_injective.
 
   Lemma lambda_normal_to_term_injective :
     forall {xs} (n : lambda_normal xs) {ys} (n' : lambda_normal ys),
       lambda_normal_to_term n = lambda_normal_to_term n' -> n ~= n' /\ xs = ys.
-  Proof. apply struct_and_normals_to_term_injective. Qed.
+  Proof. apply all_normal_forms_to_term_injective. Qed.
 
   Lemma normal_to_term_injective :
     forall {xs} (n : normal xs) {ys} (n' : normal ys),
       normal_to_term n = normal_to_term n' -> n ~= n' /\ xs = ys.
-  Proof. apply struct_and_normals_to_term_injective. Qed.
+  Proof. apply all_normal_forms_to_term_injective. Qed.
 
-  Lemma struct_and_normals_NoDup :
-    (forall {xs} (n : struct xs), NoDup xs) /\
-    (forall {xs} (n : normal xs), NoDup xs) /\
-    (forall {xs} (n : lambda_normal xs), NoDup xs).
+  Lemma all_normal_forms_NoDup :
+    forall_normal_forms (fun normal_form _ =>
+      (forall {xs} (n : normal_form xs), NoDup xs)).
   Proof with eauto.
-    apply struct_and_normals_ind; intros...
+    apply all_normal_forms_ind; intros...
     repeat constructor...
   Qed.
 
   Lemma struct_NoDup :
     forall {xs} (n : struct xs),
       NoDup xs.
-  Proof. apply struct_and_normals_NoDup. Qed.
+  Proof. apply all_normal_forms_NoDup. Qed.
 
   Lemma lambda_normal_NoDup :
     forall {xs} (n : lambda_normal xs),
       NoDup xs.
-  Proof. apply struct_and_normals_NoDup. Qed.
+  Proof. apply all_normal_forms_NoDup. Qed.
 
   Lemma normal_NoDup :
     forall {xs} (n : normal xs),
       NoDup xs.
-  Proof. apply struct_and_normals_NoDup. Qed.
+  Proof. apply all_normal_forms_NoDup. Qed.
 
   Hint Resolve struct_NoDup.
 
@@ -454,19 +451,13 @@ Module Lam_cbnd_PreRefSem <: PRE_REF_SEM.
 
   Hint Resolve lambda_normal_NoDup normal_NoDup neutral_NoDup.
 
-  (* if cˣ_{ys}_k = n_{xs} then x ∈ xs *)
-  Lemma normal_vars_neutral :
-    forall xs (s: normal xs) k x ys (n : in_ctx k x ys),
-      normal_to_term s = nf_to_term n -> In x xs.
+  Lemma all_normal_forms_vars_neutral :
+    forall_normal_forms (fun normal_form to_term =>
+      forall xs (s: normal_form xs) k x ys (n : in_ctx k x ys),
+        to_term _ s = nf_to_term n -> In x xs).
   Proof with eauto.
-    induction s using normal_Ind with
-        (P:= fun xs s => forall k x ys (n:in_ctx k x ys),
-                 struct_to_term s = nf_to_term n -> In x xs)
-        (P0:= fun xs s => forall k x ys (n:in_ctx k x ys),
-                  normal_to_term s = nf_to_term n -> In x xs)
-        (P1:= fun xs s => forall k x ys (n:in_ctx k x ys),
-                  lambda_normal_to_term s = nf_to_term n -> In x xs)
-    ; simpl; intros; subst;
+    apply all_normal_forms_ind;
+      simpl; intros; subst;
       match goal with
       | [ n : in_ctx _ _ _ |- _ ] => dependent destruction n
       | _ => idtac
@@ -474,198 +465,72 @@ Module Lam_cbnd_PreRefSem <: PRE_REF_SEM.
     +
       inversion H; subst...
     +
-      injection H; intros; subst...
-      apply set_union_intro1; eapply IHs...
+      injection H1; intros; subst...
+      apply set_union_intro1; eapply H...
     +
-      injection H; intros; subst...
-      apply set_union_intro2; eapply IHs0...
+      injection H1; intros; subst...
+      apply set_union_intro2; eapply H0...
     +
-      injection H; intros; subst...
+      injection H0; intros; subst...
     +
-      injection H; intros; subst...
+      injection H1; intros; subst...
       elim struct_to_term_injective with s _ s1; intros; subst.
       destruct (in_split_inv2 _  _ _ i) as [ h1 [ h2 [ h3 h4] ] ] ; subst...
-      assert (hh:=IHs0 _ _ _ _ H0)...
+      assert (hh:=H0 _ _ _ _ H2)...
+      destruct (in_app_or _ _ _ hh); eauto.
+      apply set_union_intro2...
+      apply in_or_app...
+      destruct H4; subst; eauto.
+      elim n1...
+      apply set_union_intro2...
+      apply in_or_app; auto.
+      auto.
+    +
+      injection H1; intros; subst...
+      apply set_union_intro1; eapply H...
+    +
+      inversion H0; subst...
+      apply set_remove_3...
+    +
+      inversion H0; subst...
+    +
+      inversion H1; subst...
+      assert (hh:=H0 _ _ _ _ H5)...
+      elim struct_to_term_injective with s _ s0; intros; subst.
+      destruct (in_split_inv2 _  _ _ i) as [ h1 [ h2 [ h3 h4] ] ]; subst...
       destruct (in_app_or _ _ _ hh); eauto.
       apply set_union_intro2...
       apply in_or_app...
       destruct H2; subst; eauto.
       elim n1...
       apply set_union_intro2...
-      apply in_or_app; auto.
-      auto.
-    +
-
-      injection H; intros; subst...
-      apply set_union_intro1; eapply IHs...
-    +
-      inversion H; subst...
-      apply set_remove_3...
-    +
-      inversion H; subst...
-    +
-      inversion H; subst...
-      assert (hh:=IHs0 _ _ _ _ H3)...
-      elim struct_to_term_injective with s _ s0; intros; subst.
-      destruct (in_split_inv2 _  _ _ i) as [ h1 [ h2 [ h3 h4] ] ]; subst...
-      destruct (in_app_or _ _ _ hh); eauto.
-      apply set_union_intro2...
-      apply in_or_app...
-      destruct H0; subst; eauto.
-      elim n1...
-      apply set_union_intro2...
       apply in_or_app...
       auto.
     +
-      inversion H; subst...
-      assert (hh:=IHs _ _ _ _ H2)...
+      inversion H1; subst...
+      assert (hh:=H _ _ _ _ H4)...
       apply set_union_intro1...
   Qed.
 
-  Hint Resolve normal_vars_neutral.
+  (* if cˣ_{ys}_k = n_{xs} then x ∈ xs *)
+  Lemma normal_vars_neutral :
+    forall xs (s: normal xs) k x ys (n : in_ctx k x ys),
+      normal_to_term s = nf_to_term n -> In x xs.
+  Proof. apply all_normal_forms_vars_neutral. Qed.
 
   (* if cˣ_{ys}_k = ln_{xs} then x ∈ xs *)
   Lemma lambda_normal_vars_neutral :
     forall xs (s: lambda_normal xs) k x ys (n : in_ctx k x ys),
       lambda_normal_to_term s = nf_to_term n -> In x xs.
-  Proof with eauto.
-    induction s using lambda_normal_Ind with
-        (P:= fun xs s => forall k x ys (n:in_ctx k x ys),
-                 struct_to_term s = nf_to_term n -> In x xs)
-        (P0:= fun xs s => forall k x ys (n:in_ctx k x ys),
-                  normal_to_term s = nf_to_term n -> In x xs)
-        (P1:= fun xs s => forall k x ys (n:in_ctx k x ys),
-                  lambda_normal_to_term s = nf_to_term n -> In x xs)
-    ; simpl; intros; subst;
-      match goal with
-      | [ n : in_ctx _ _ _ |- _ ] => dependent destruction n
-      | _ => idtac
-      end; try discriminate...
-    +
-      inversion H; subst...
-    +
-      injection H; intros; subst...
-      apply set_union_intro1; eapply IHs...
-    +
-      injection H; intros; subst...
-      apply set_union_intro2; eapply IHs0...
-    +
-      injection H; intros; subst...
-    +
-      injection H; intros; subst...
-      elim struct_to_term_injective with s _ s1; intros; subst.
-      destruct (in_split_inv2 _  _ _ i) as [ h1 [ h2 [ h3 h4] ] ]; subst...
-      assert (hh:=IHs0 _ _ _ _ H0)...
-      destruct (in_app_or _ _ _ hh); eauto.
-      apply set_union_intro2...
-      apply in_or_app...
-      destruct H2; subst; eauto.
-      elim n1...
-      apply set_union_intro2...
-      apply in_or_app; auto.
-      auto.
-    +
-
-      injection H; intros; subst...
-      apply set_union_intro1; eapply IHs...
-    +
-      inversion H; subst...
-      apply set_remove_3...
-    +
-      inversion H; subst...
-    +
-      inversion H; subst...
-      assert (hh:=IHs0 _ _ _ _ H3)...
-      elim struct_to_term_injective with s _ s1; intros; subst.
-      destruct (in_split_inv2 _  _ _ i) as [ h1 [ h2 [ h3 h4] ] ]; subst...
-      destruct (in_app_or _ _ _ hh); eauto.
-      apply set_union_intro2...
-      apply in_or_app...
-      destruct H0; subst; eauto.
-      elim n1...
-      apply set_union_intro2...
-      apply in_or_app...
-      auto.
-    +
-      inversion H; subst...
-      assert (hh:=IHs _ _ _ _ H2)...
-      apply set_union_intro1...
-  Qed.
-
-
-  Hint Resolve lambda_normal_vars_neutral.
+  Proof. apply all_normal_forms_vars_neutral. Qed.
 
   (* if cˣ_{ys}_k = s_{xs} then x ∈ xs *)
   Lemma struct_vars_neutral :
     forall xs (s: struct xs) k x ys (n : in_ctx k x ys),
       struct_to_term s = nf_to_term n -> In x xs.
-  Proof with eauto.
-    induction s using struct_Ind with
-        (P:= fun xs s => forall k x ys (n:in_ctx k x ys),
-                 struct_to_term s = nf_to_term n -> In x xs)
-        (P0:= fun xs s => forall k x ys (n:in_ctx k x ys),
-                  normal_to_term s = nf_to_term n -> In x xs)
-        (P1:= fun xs s => forall k x ys (n:in_ctx k x ys),
-                  lambda_normal_to_term s = nf_to_term n -> In x xs)
-    ; simpl; intros; subst;
-      match goal with
-      | [ n : in_ctx _ _ _ |- _ ] => dependent destruction n
-      | _ => idtac
-      end; try discriminate...
-    +
-      inversion H; subst...
-    +
-      injection H; intros; subst...
-      apply set_union_intro1; eapply IHs...
-    +
-      injection H; intros; subst...
-      apply set_union_intro2; eapply IHs0...
-    +
-      injection H; intros; subst...
-    +
-      injection H; intros; subst...
-      elim struct_to_term_injective with s _ s1; intros; subst.
-      destruct (in_split_inv2 _  _ _ i) as [ h1 [ h2 [ h3 h4] ] ]; subst...
-      assert (hh:=IHs2 _ _ _ _ H0)...
-      destruct (in_app_or _ _ _ hh); eauto.
-      apply set_union_intro2...
-      apply in_or_app...
-      destruct H2; subst; eauto.
-      elim n1...
-      apply set_union_intro2...
-      apply in_or_app; auto.
-      auto.
-    +
+  Proof. apply all_normal_forms_vars_neutral. Qed.
 
-      injection H; intros; subst...
-      apply set_union_intro1; eapply IHs1...
-    +
-      inversion H; subst...
-      apply set_remove_3...
-    +
-      inversion H; subst...
-    +
-      inversion H; subst...
-      assert (hh:=IHs0 _ _ _ _ H3)...
-      elim struct_to_term_injective with s _ s0; intros; subst.
-      destruct (in_split_inv2 _  _ _ i) as [ h1 [ h2 [ h3 h4] ] ]; subst...
-      destruct (in_app_or _ _ _ hh); eauto.
-      apply set_union_intro2...
-      apply in_or_app...
-      destruct H0; subst; eauto.
-      elim n1...
-      apply set_union_intro2...
-      apply in_or_app...
-      auto.
-    +
-      inversion H; subst...
-      assert (hh:=IHs _ _ _ _ H2)...
-      apply set_union_intro1...
-  Qed.
-
-
-
-  Hint Resolve struct_vars_neutral.
+  Hint Resolve normal_vars_neutral lambda_normal_vars_neutral struct_vars_neutral.
 
   Lemma neutral_to_term_vars :
     forall {k} {x} {xs} (n : in_ctx k x xs) y ys (n' : in_ctx k y ys),
