@@ -139,8 +139,39 @@ Definition unit_is_everything :                                forall {P : unit 
 
 Notation "'ů' P" := (unit_is_everything P)                                  (at level 0).
 
+(* Option utils *)
 
+Definition option_bind {A B : Type} (x : option A) (f : A -> option B) : option B :=
+  match x with
+  | None => None
+  | Some a => f a
+  end.
 
+Lemma option_right_unit : forall {A B : Type} (x : option A),
+  option_bind x Some = x.
+Proof. destruct x; reflexivity. Qed.
+
+Lemma option_bind_assoc : forall {A B C : Type} (x : option A)
+  (f : A -> option B) (g : B -> option C),
+  option_bind x (fun y => option_bind (f y) g) = option_bind (option_bind x f) g.
+Proof. destruct x; reflexivity. Qed.
+
+Fixpoint option_n_binds {A : Type} (n : nat) (f : A -> option A) (a : A) : option A :=
+  match n with
+  | O => Some a
+  | S n => option_bind (f a) (option_n_binds n f)
+  end.
+
+Lemma option_n_binds_assoc : forall {A : Type} n f (a : A),
+  option_bind (f a) (option_n_binds n f) =
+  option_bind (option_n_binds n f a) f.
+Proof.
+  induction n; intros f a.
+  + destruct (f a) eqn:fa; auto.
+  + simpl. rewrite <- option_bind_assoc.
+    destruct (f a); [|reflexivity].
+    apply IHn.
+Qed.
 
 (* Some tactics *)
 

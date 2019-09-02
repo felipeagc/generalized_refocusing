@@ -356,6 +356,11 @@ Definition t := (Plus (Plus 1 2) (Plus 4 8)).
 
 Compute Addition_sim.list_configurations t 17.
 
+Axiom terminates : forall c, exists n, Addition_sim.n_steps_terminate c n.
+Definition t_value := Addition_sim.eval t (terminates _).
+
+(* Extraction "addition.ml" t_value. *)
+
 (*
 [( 1 + 2 ) + ( 4 + 8 )]
 [[ 1 + 2 ] + ( 4 + 8 )]
