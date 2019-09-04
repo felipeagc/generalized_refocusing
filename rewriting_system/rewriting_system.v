@@ -52,12 +52,12 @@ Instance RWS_is_LRWS                                                            
 }.
 
 
-
+Require Program Fin2 Vector2.
 
 Module Paths.
 
-  Require Import Program.
-  Require Export Fin2 Vector2.
+  Import Program.
+  Export Fin2 Vector2.
   Local Open Scope vector.
 
 

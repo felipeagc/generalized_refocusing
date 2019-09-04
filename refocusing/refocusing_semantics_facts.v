@@ -7,10 +7,7 @@ Require Import reduction_languages_facts.
 
 Require Import EqdepFacts.
 
-Module RED_REF_SEM_Facts (R : RED_REF_SEM).
-
-  Module RF := RED_LANG_Facts R.
-  Import R RF.
+Module RED_REF_SEM_Facts (Import R' : RED_REF_SEM).
 
   Lemma refocus_in_is_pfunction :             forall t {k1 k2} (c : context k1 k2) d0 d1,
       refocus_in t c d0 -> refocus_in t c d1 -> d0 = d1.
@@ -33,7 +30,7 @@ Module RED_REF_SEM_Facts (R : RED_REF_SEM).
                  rewrite DT2 in DT1; inversion DT1 end
 
     | [ RC : (refocus_out ?v (?ec=:?c) ?d), DC1 : (dec_context ?ec ?v = _) |- _ ] => 
-             dependent_destruction2 RC; (*inversion_ccons x2;*) dep_subst;
+             dependent_destruction2 RC; (*inversion_pcons x2;*) dep_subst;
              match goal with DC2 : (dec_context ?ec' ?v' = _) |- _ => 
                  rewrite DC2 in DC1; inversion DC1 end
 

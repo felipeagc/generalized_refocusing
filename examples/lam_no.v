@@ -65,7 +65,7 @@ Module Lam_NO_PreRefSem <: PRE_REF_SEM.
 
   Inductive eck : ckind -> ckind -> Set :=
   | k_lam_c : var -> eck Eᵏ Eᵏ
-  | k_ap_r  : forall {k}, term -> eck k Fᵏ 
+  | k_ap_r  : forall {k}, term -> eck k Fᵏ
   | k_ap_l  : forall {k}, valA -> eck k Eᵏ .
   Definition elem_context_kinded : ckind -> ckind -> Type := eck.
 
@@ -79,7 +79,7 @@ Module Lam_NO_PreRefSem <: PRE_REF_SEM.
   (*Definition erase_kinds {k1 k2} (e : elem_context_kinded k1 k2) : elem_context :=
       match e with
       | k_lam_c x => lam_c x
-      | k_ap_r t  => ap_r t 
+      | k_ap_r t  => ap_r t
       | k_ap_l a  => ap_l a
       end.
   Coercion erase_kinds : elem_context_kinded >-> elem_context.*)
@@ -88,16 +88,6 @@ Module Lam_NO_PreRefSem <: PRE_REF_SEM.
   Definition init_ckind : ckind :=  Eᵏ.
 
   Hint Unfold init_ckind.
-
-  Inductive context (k1 : ckind) : ckind -> Type :=
-  | empty : context k1 k1
-  | ccons :                                                                forall {k2 k3}
-            (ec : elem_context_kinded k2 k3), context k1 k2 -> context k1 k3.
-  Arguments empty {k1}. Arguments ccons {k1 k2 k3} _ _.
-
-  Notation "[.]"      := empty.
-  Notation "[.]( k )" := (@empty k).
-  Infix    "=:"       := ccons (at level 60, right associativity).
 
 
   Fixpoint value_to_term {k} (v : value k) : term :=
@@ -124,11 +114,11 @@ Module Lam_NO_PreRefSem <: PRE_REF_SEM.
       end.
   Coercion redex_to_term : redex >-> term.
 
-  Lemma value_to_term_injective : 
+  Lemma value_to_term_injective :
       forall {k} (v v' : value k), value_to_term v = value_to_term v' -> v = v'.
 
   Proof with auto.
-    induction v using val_Ind with 
+    induction v using val_Ind with
     (P  := fun k v => forall v' : value k, value_to_term v = value_to_term v' -> v = v')
     (P0 := fun v   => forall v' : valA,    valA_to_term v  = valA_to_term v'  -> v = v');
     dependent destruction v'; intro H; inversion H; f_equal...
@@ -139,14 +129,14 @@ Module Lam_NO_PreRefSem <: PRE_REF_SEM.
       forall v v', valA_to_term v = valA_to_term v' -> v = v'.
 
   Proof with auto.
-    induction v using valCa_Ind with 
+    induction v using valCa_Ind with
     (P  := fun k v => forall v' : value k, value_to_term v = value_to_term v' -> v = v')
     (P0 := fun v   => forall v' : valA,    valA_to_term v  = valA_to_term v'  -> v = v');
     dependent destruction v'; intro H; inversion H; f_equal...
   Qed.
 
 
-  Lemma redex_to_term_injective : 
+  Lemma redex_to_term_injective :
       forall {k} (r r' : redex k), redex_to_term r = redex_to_term r' -> r = r'.
 
   Proof with auto.
@@ -154,20 +144,11 @@ Module Lam_NO_PreRefSem <: PRE_REF_SEM.
     destruct k;
 
     solve
-    [ destruct r; 
-      dependent destruction r'; 
+    [ destruct r;
+      dependent destruction r';
       inversion H;
       f_equal; auto ].
   Qed.
-
-
-  Fixpoint compose {k1 k2} (c0 : context k1 k2) 
-                      {k3} (c1 : context k3 k1) : context k3 k2 := 
-      match c0 in context _ k2' return context k3 k2' with
-      | [.]     => c1
-      | ec=:c0' => ec =: compose c0' c1
-      end.
-  Infix "~+" := compose (at level 60, right associativity).
 
 
   Definition elem_plug {k1 k2} (t : term) (ec : elem_context_kinded k1 k2) : term :=
@@ -176,7 +157,18 @@ Module Lam_NO_PreRefSem <: PRE_REF_SEM.
       | k_ap_r tr => App t tr
       | k_ap_l v  => App (v : term) t
       end.
-  Notation "ec :[ t ]" := (elem_plug t ec) (at level 0).
+
+
+  Parameter subst : var -> term -> term -> term.
+
+
+  Definition contract0 {k} (r : redex k) : term :=
+      match r with
+      | rApp x t0 t1 => subst x t1 t0
+      end.
+  Definition contract {k} (r : redex k) := Some (contract0 r).
+
+  Include RED_SEM_BASE_Notions.
 
 
   Lemma elem_plug_injective1 : forall {k1 k2} (ec : elem_context_kinded k1 k2) {t0 t1},
@@ -189,30 +181,7 @@ Module Lam_NO_PreRefSem <: PRE_REF_SEM.
   Qed.
 
 
-  Fixpoint plug t {k1 k2} (c : context k1 k2) : term :=
-      match c with
-      | [.]    => t 
-      | ec=:c' => plug ec:[t] c'
-      end.
-  Notation "c [ t ]" := (plug t c) (at level 0).
-
-
-  Definition immediate_ec {k1 k2} (ec : elem_context_kinded k1 k2) t := 
-      exists t', ec:[t'] = t.
-
-
-  Parameter subst : var -> term -> term -> term.
-
-
-  Definition contract0 {k} (r : redex k) : term :=
-      match r with
-      | rApp x t0 t1 => subst x t1 t0
-      end.
-  Definition contract {k} (r : redex k) := Some (contract0 r).
-
-
-
-  Lemma valA_is_valF : 
+  Lemma valA_is_valF :
       forall v1 : valA, exists v2 : value Fᵏ, valA_to_term v1 = value_to_term v2.
 
   Proof with auto.
@@ -247,21 +216,21 @@ Module Lam_NO_PreRefSem <: PRE_REF_SEM.
     intros k k' r ec t H0.
     generalize dependent r.
     dependent destruction ec; intros; dependent destruction r; inversion H0; subst;
-    solve 
+    solve
     [ eexists (vFLam _ _); reflexivity
     | eauto using valA_is_valF
     | destruct v; inversion H1 ].
   Qed.
 
 
-  Lemma value_redex : forall {k} (v : value k) (r : redex k), 
+  Lemma value_redex : forall {k} (v : value k) (r : redex k),
                           value_to_term v <> redex_to_term r.
   Proof.
     intros k v r.
 
-    dependent destruction r; dependent destruction v; 
+    dependent destruction r; dependent destruction v;
     simpl;
-    try match goal with 
+    try match goal with
     | |- App (valA_to_term ?v) _ <> _ => dependent_destruction2 v
     end;
 
@@ -269,57 +238,11 @@ Module Lam_NO_PreRefSem <: PRE_REF_SEM.
   Qed.
 
 
-  Inductive decomp k : Type :=
-  | d_red : forall {k'}, redex k' -> context k k' -> decomp k
-  | d_val : value k -> decomp k.
-  Arguments d_val {k} _. Arguments d_red {k} {k'} _ _.
-
-
-  Definition decomp_to_term {k} (d : decomp k) :=
-      match d with
-      | d_val v     => value_to_term v
-      | d_red r c => c[r]
-      end.
-  Coercion decomp_to_term : decomp >-> term.
-
-
-  Definition dec (t : term) k (d : decomp k) : Prop :=
-      t = d.
-
-
-  Definition immediate_subterm t0 t := exists k1 k2 (ec : elem_context_kinded k1 k2),
-      t = ec:[t0].
-
-
   Lemma wf_immediate_subterm: well_founded immediate_subterm.
   Proof. REF_LANG_Help.prove_st_wf. Qed.
 
-
-  Definition subterm_order := clos_trans_1n term immediate_subterm.
-  Notation "t1 <| t2" := (subterm_order t1 t2) (at level 70, no associativity).
-
   Definition wf_subterm_order : well_founded subterm_order
       := wf_clos_trans_l _ _ wf_immediate_subterm.
-
-
-  Definition reduce k t1 t2 := 
-      exists {k'} (c : context k k') (r : redex k') t,  dec t1 k (d_red r c) /\
-          contract r = Some t /\ t2 = c[t].
-
-
-  Instance lrws : LABELED_REWRITING_SYSTEM ckind term :=
-  { ltransition := reduce }. 
-  Instance rws : REWRITING_SYSTEM term := 
-  { transition := reduce init_ckind }.
-
-
-  Class SafeKRegion (k : ckind) (P : term -> Prop) :=
-  { 
-      preservation :                                                        forall t1 t2,
-          P t1  ->  k |~ t1 → t2  ->  P t2;
-      progress :                                                               forall t1,
-          P t1  ->  (exists (v : value k), t1 = v) \/ (exists t2, k |~ t1 → t2)
-  }.
 
 End Lam_NO_PreRefSem.
 
@@ -329,18 +252,12 @@ End Lam_NO_PreRefSem.
 Module Lam_NO_Strategy <: REF_STRATEGY Lam_NO_PreRefSem.
 
   Import Lam_NO_PreRefSem.
+  Include RED_STRATEGY_STEP_Notions Lam_NO_PreRefSem.
 
-
-  Inductive elem_dec k : Type :=
-  | ed_red  : redex k -> elem_dec k
-  | ed_dec : forall k', term -> elem_context_kinded k k' -> elem_dec k
-  | ed_val  : value k -> elem_dec k.
-  Arguments ed_red {k} _.       Arguments ed_val {k} _.
-  Arguments ed_dec {k} k' _ _.
 
   Definition dec_term (t : term) (k : ckind) : elem_dec k :=
 
-      match k as k0 return elem_dec k0 with 
+      match k as k0 return elem_dec k0 with
       | Eᵏ   => match t with
                 | App t1 t2 => ed_dec _ t1 (k_ap_r t2)
                 | Var x     => ed_val (vVar x)
@@ -373,12 +290,7 @@ Module Lam_NO_Strategy <: REF_STRATEGY Lam_NO_PreRefSem.
      end v.
 
 
-  Lemma dec_term_correct :                                                    forall t k,
-      match dec_term t k with
-      | ed_red r      => t = r
-      | ed_val v      => t = v
-      | ed_dec _ t' ec => t = ec:[t']
-      end.
+  Lemma dec_term_correct : forall t k, t = elem_rec (dec_term t k).
 
   Proof.
     destruct k, t; simpl;
@@ -386,12 +298,8 @@ Module Lam_NO_Strategy <: REF_STRATEGY Lam_NO_PreRefSem.
   Qed.
 
 
-  Lemma dec_context_correct :            forall {k k'} (ec : elem_context_kinded k k') v,
-      match dec_context ec v with
-      | ed_red r      => ec:[v] = r
-      | ed_val v'     => ec:[v] = v'
-      | ed_dec _ t ec' => ec:[v] = ec':[t]
-      end.
+  Lemma dec_context_correct : forall {k k'} (ec : elem_context_kinded k k') (v : value k'),
+      ec:[v] = elem_rec (dec_context ec v).
 
   Proof with auto.
     intros k k' ec.
@@ -412,8 +320,8 @@ Module Lam_NO_Strategy <: REF_STRATEGY Lam_NO_PreRefSem.
       let (_, ec)  := ec  in
       let (_, ec0) := ec0 in
 
-      match ec, ec0 with 
-      | k_ap_l _, k_ap_r _ => immediate_ec ec t /\ immediate_ec ec0 t 
+      match ec, ec0 with
+      | k_ap_l _, k_ap_r _ => immediate_ec ec t /\ immediate_ec ec0 t
       | _, _               => False
       end.
 
@@ -466,7 +374,7 @@ Module Lam_NO_Strategy <: REF_STRATEGY Lam_NO_PreRefSem.
 
     solve
     [ compute; eautof 7
-    | do 2 right; 
+    | do 2 right;
       f_equal;
       apply valA_to_term_injective; auto
     | do 2 right;
@@ -515,7 +423,7 @@ Module Lam_NO_Strategy <: REF_STRATEGY Lam_NO_PreRefSem.
       intro G;
       unfold search_order in G; destruct G as (G, _);
       destruct G as (t1, G); inversion G; subst;
-      destruct v0; 
+      destruct v0;
       autof ].
 
     (* TO REFACTOR *)
@@ -536,7 +444,7 @@ Module Lam_NO_Strategy <: REF_STRATEGY Lam_NO_PreRefSem.
 
   Proof.
     intros k k' v v' ec H [k'' ec'].
-    destruct ec; dependent destruction ec'; dependent destruction v; 
+    destruct ec; dependent destruction ec'; dependent destruction v;
     solve [ autof ].
   Qed.
 
@@ -551,16 +459,16 @@ Module Lam_NO_Strategy <: REF_STRATEGY Lam_NO_PreRefSem.
     dependent destruction ec0;
     dependent destruction ec1;
     try dependent destruction v;
-    solve 
+    solve
     [ autof
 
     | inversion H; subst;
       split;
-      [ constructor; 
+      [ constructor;
         compute; eauto
-      | intros [k'' ec''] H0 H1; 
+      | intros [k'' ec''] H0 H1;
         destruct ec'';
-        solve [ autof ] 
+        solve [ autof ]
       ] ].
   Qed.
 

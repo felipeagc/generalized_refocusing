@@ -72,19 +72,6 @@ Module MiniML_PreRefSem <: PRE_REF_SEM.
   Definition init_ckind : ckind := ().
   Hint Unfold init_ckind.
 
-
-  Inductive context (k1 : ckind) : ckind -> Type :=
-  | empty : context k1 k1
-  | ccons :                                                                forall {k2 k3}
-            (ec : elem_context_kinded k2 k3), context k1 k2 -> context k1 k3.
-  Arguments empty {k1}. Arguments ccons {k1 k2 k3} _ _.
-  Notation context' := (context () ()).
-
-  Notation "[.]"      := empty.
-  Notation "[.]( k )" := (@empty k).
-  Infix "=:"          := ccons (at level 60, right associativity).
-
-
   Fixpoint value_to_term {k} (v : value k) : term :=
       match v with
       | vZ          => Z
@@ -108,7 +95,7 @@ Module MiniML_PreRefSem <: PRE_REF_SEM.
   Coercion redex_to_term : redex >-> term.
 
 
-  Lemma value_to_term_injective : 
+  Lemma value_to_term_injective :
       forall {k} (v v' : value k), value_to_term v = value_to_term v' -> v = v'.
 
   Proof.
@@ -122,26 +109,17 @@ Module MiniML_PreRefSem <: PRE_REF_SEM.
   Qed.
 
 
-  Lemma redex_to_term_injective : 
+  Lemma redex_to_term_injective :
       forall {k} (r r' : redex k), redex_to_term r = redex_to_term r' -> r = r'.
 
   Proof.
     destruct k.
 
-    destruct r; destruct r'; 
+    destruct r; destruct r';
     inversion 1;
 
     solve [ f_equal; auto using value_to_term_injective ].
   Qed.
-
-
-  Fixpoint compose {k1 k2} (c0 : context k1 k2) 
-                      {k3} (c1 : context k3 k1) : context k3 k2 := 
-      match c0 in context _ k2' return context k3 k2' with
-      | [.]     => c1
-      | ec=:c0' => ec =: compose c0' c1
-      end.
-  Infix "~+" := compose (at level 60, right associativity).
 
 
   Definition elem_plug {k1 k2} (t : term) (ec : elem_context_kinded k1 k2) : term :=
@@ -156,31 +134,6 @@ Module MiniML_PreRefSem <: PRE_REF_SEM.
       | pair_l v       => Pair (v : term) t
       | pair_r t2      => Pair t t2
       end.
-  Notation "ec :[ t ]" := (elem_plug t ec) (at level 0).
-
-
-  Lemma elem_plug_injective1 :     forall {k1 k2} (ec : elem_context_kinded k1 k2) t0 t1,
-      ec:[t0] = ec:[t1] -> t0 = t1.
-
-  Proof.
-    intros ? ? ec ? ? H.
-
-    destruct ec;
-    inversion H;
-    solve [ trivial ].
-  Qed.
-
-
-  Fixpoint plug t {k1 k2} (c : context k1 k2) : term :=
-      match c with
-      | [.]    => t 
-      | ec=:c' => plug ec:[t] c'
-      end.
-  Notation "c [ t ]" := (plug t c) (at level 0).
-
-
-  Definition immediate_ec {k1 k2} (ec : elem_context_kinded k1 k2) t := 
-      exists t', ec:[t'] = t.
 
 
   Parameter subst : var -> term -> term -> term.
@@ -198,10 +151,28 @@ Module MiniML_PreRefSem <: PRE_REF_SEM.
       end.
   Notation contract' := (@contract ()).
 
+  Include RED_SEM_BASE_Notions.
+
+  Notation context' := (context () ()).
+  Notation decomp'  := (@decomp ()).
+
+
+  Lemma elem_plug_injective1 :     forall {k1 k2} (ec : elem_context_kinded k1 k2) t0 t1,
+      ec:[t0] = ec:[t1] -> t0 = t1.
+
+  Proof.
+    intros ? ? ec ? ? H.
+
+    destruct ec;
+    inversion H;
+    solve [ trivial ].
+  Qed.
+
+
 
   Lemma value_trivial1 :
   forall {k1 k2} (ec:elem_context_kinded k1 k2) t,
-       forall v : value k1,  ec:[t] = v -> 
+       forall v : value k1,  ec:[t] = v ->
            exists (v' : value k2), t = v'.
 
   Proof.
@@ -211,7 +182,7 @@ Module MiniML_PreRefSem <: PRE_REF_SEM.
   Qed.
 
 
-  Lemma value_redex : forall {k} (v : value k) (r : redex k), 
+  Lemma value_redex : forall {k} (v : value k) (r : redex k),
                           value_to_term v <> redex_to_term r.
   Proof.
     destruct v; destruct r; intro H; discriminate H.
@@ -219,7 +190,7 @@ Module MiniML_PreRefSem <: PRE_REF_SEM.
 
 
   Lemma redex_trivial1 : forall {k k'} (r : redex k) (ec : elem_context_kinded k k') t,
-                             ec:[t] = r -> 
+                             ec:[t] = r ->
                                  exists (v : value k'), t = v.
   Proof with auto.
     intros [] [] r ec t H.
@@ -228,56 +199,11 @@ Module MiniML_PreRefSem <: PRE_REF_SEM.
   Qed.
 
 
-  Definition immediate_subterm t0 t := 
-      exists k1 k2 (ec : elem_context_kinded k1 k2), t = ec:[t0].
-
   Lemma wf_immediate_subterm : well_founded immediate_subterm.
   Proof. REF_LANG_Help.prove_st_wf. Qed.
 
-
-  Definition subterm_order := clos_trans_1n term immediate_subterm.
-  Notation "t1 <| t2" := (subterm_order t1 t2) (at level 70, no associativity).
-  Definition wf_subterm_order : well_founded subterm_order 
+  Definition wf_subterm_order : well_founded subterm_order
       := wf_clos_trans_l _ _ wf_immediate_subterm.
-
-
-
-  Inductive decomp k : Type :=
-  | d_red : forall {k'}, redex k' -> context k k' -> decomp k
-  | d_val : value k -> decomp k.
-  Arguments d_val {k} _. Arguments d_red {k} {k'} _ _.
-
-  Definition decomp_to_term {k} (d : decomp k) :=
-      match d with
-      | d_val v     => value_to_term v
-      | d_red r c => c[r]
-      end.
-  Coercion decomp_to_term : decomp >-> term.
-  Notation decomp'   := (@decomp ()).
-
-
-  Definition dec (t : term) k (d : decomp k) : Prop := 
-      t = d.
-
-
-  Definition reduce k t1 t2 := 
-      exists {k'} (c : context k k') (r : redex k') t,  dec t1 k (d_red r c) /\
-          contract r = Some t /\ t2 = c[t].
-
-
-  Instance lrws : LABELED_REWRITING_SYSTEM ckind term :=
-  { ltransition := reduce }. 
-  Instance rws : REWRITING_SYSTEM term := 
-  { transition := reduce init_ckind }.
-
-
-  Class SafeKRegion (k : ckind) (P : term -> Prop) :=
-  { 
-      preservation :                                                        forall t1 t2,
-          P t1  ->  k |~ t1 → t2  ->  P t2;
-      progress :                                                               forall t1,
-          P t1  ->  (exists (v : value k), t1 = v) \/ (exists t2, k |~ t1 → t2)
-  }.
 
 End MiniML_PreRefSem.
 
@@ -287,14 +213,7 @@ End MiniML_PreRefSem.
 Module MiniML_Strategy <: REF_STRATEGY MiniML_PreRefSem.
 
   Import MiniML_PreRefSem.
-
-
-  Inductive elem_dec k : Type :=
-  | ed_red  : redex k -> elem_dec k
-  | ed_dec : forall k', term -> elem_context_kinded k k' -> elem_dec k
-  | ed_val  : value k -> elem_dec k.
-  Arguments ed_red {k} _.       Arguments ed_val {k} _.
-  Arguments ed_dec {k} k' _ _.
+  Include RED_STRATEGY_STEP_Notions MiniML_PreRefSem.
 
   Definition dec_term (t : term) k : elem_dec k :=
       match t with
@@ -328,24 +247,15 @@ Module MiniML_Strategy <: REF_STRATEGY MiniML_PreRefSem.
       end.
 
 
-  Lemma dec_term_correct :                                                    forall t k,
-      match dec_term t k with
-      | ed_red r      => t = r
-      | ed_val v      => t = v
-      | ed_dec _ t' ec => t = ec:[t']
-      end.
+  Lemma dec_term_correct : forall t k, t = elem_rec (dec_term t k).
 
   Proof with auto.
-    destruct k, t; simpl... 
+    destruct k, t; simpl...
   Qed.
 
 
-  Lemma dec_context_correct :            forall {k k'} (ec : elem_context_kinded k k') v,
-      match dec_context ec v with
-      | ed_red r      => ec:[v] = r
-      | ed_val v'     => ec:[v] = v'
-      | ed_dec _ t ec' => ec:[v] = ec':[t]
-      end.
+  Lemma dec_context_correct : forall {k k'} (ec : elem_context_kinded k k') (v : value k'),
+      ec:[v] = elem_rec (dec_context ec v).
 
   Proof.
     intros k ec v.
@@ -429,8 +339,8 @@ Module MiniML_Strategy <: REF_STRATEGY MiniML_PreRefSem.
     destruct ec0, ec1; inversion H0;
 
     solve
-    [ auto 
-    | inj_vr; subst; 
+    [ auto
+    | inj_vr; subst;
       simpl;
       intuition constructor ].
   Qed.
@@ -456,7 +366,7 @@ Module MiniML_Strategy <: REF_STRATEGY MiniML_PreRefSem.
 
   Proof.
     intros [] [] t t' ec H ec' H0.
-    destruct t, ec; 
+    destruct t, ec;
         inversion H; subst;
         destruct ec';
     solve [ inversion H0 ].
@@ -482,7 +392,7 @@ Module MiniML_Strategy <: REF_STRATEGY MiniML_PreRefSem.
 
   Proof.
     intros [] [] v v' ec H [[] ec'] H0.
-    destruct ec, ec'; 
+    destruct ec, ec';
     solve [ inversion H; inversion H0 ].
   Qed.
 
@@ -502,10 +412,10 @@ Module MiniML_Strategy <: REF_STRATEGY MiniML_PreRefSem.
 
     solve [
         split;
-        [ constructor; 
+        [ constructor;
           eexists; eauto
-        | intros [[] ec''] H1 H2; 
-          destruct ec''; 
+        | intros [[] ec''] H1 H2;
+          destruct ec'';
           inversion H1; inversion H2
     ]   ].
   Qed.
@@ -519,7 +429,7 @@ Module MiniML_Strategy <: REF_STRATEGY MiniML_PreRefSem.
   Proof.
     intros [] [] [] t ec ec' H.
 
-    destruct ec, ec'; 
+    destruct ec, ec';
         inversion H; subst;
 
     solve

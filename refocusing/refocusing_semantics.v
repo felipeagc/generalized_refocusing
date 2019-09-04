@@ -1,8 +1,9 @@
 (*** Interface part ***)
 
 
-Require Import Program 
+Require Import Program
                Util
+               RelationClasses
                rewriting_system
                reduction_languages_facts.
 Require Export reduction_semantics
@@ -15,38 +16,13 @@ Require Export reduction_semantics
 Module Type PRE_REF_SEM <: RED_STRATEGY_LANG.
 
   Include RED_STRATEGY_LANG.
-
-
-  Parameter contract : forall {k}, redex k -> option term.
-
-  Definition immediate_subterm t0 t := exists k1 k2 (ec : elem_context_kinded k1 k2),
-      t = ec:[t0].
-  Definition subterm_order          := clos_trans_1n term immediate_subterm.
-  Definition reduce k t1 t2 := 
-      exists {k'} (c : context k k') (r : redex k') t,  dec t1 k (d_red r c) /\
-          contract r = Some t /\ t2 = c[t].
-
-  Instance lrws : LABELED_REWRITING_SYSTEM ckind term :=
-  { ltransition := reduce }. 
-  Instance rws : REWRITING_SYSTEM term := 
-  { transition := reduce init_ckind }.
-
-  (*Notation "t1 <| t2"  := (subterm_order t1 t2)      (no associativity, at level 70).*)
+  Include RED_SEM_BASE_Notions.
 
   Axioms
   (redex_trivial1 :        forall {k k'} (r : redex k) (ec : elem_context_kinded k k') t,
        ec:[t] = r -> exists (v : value k'), t = v)
   (wf_immediate_subterm : well_founded immediate_subterm)
   (wf_subterm_order     : well_founded subterm_order).
-
-
-  Class SafeKRegion (k : ckind) (P : term -> Prop) :=
-  {
-      preservation :                                                        forall t1 t2,
-          P t1  ->  k |~ t1 → t2  ->  P t2;
-      progress :                                                               forall t1,
-          P t1  ->  (exists (v : value k), t1 = v) \/ (exists t2, k |~ t1 → t2)
-  }.
 
 End PRE_REF_SEM.
 
@@ -58,11 +34,9 @@ Module Type REF_STRATEGY (PR : PRE_REF_SEM) <: RED_STRATEGY PR.
   Include RED_STRATEGY PR.
 
   Axioms 
-  (wf_search :                                                                forall k t,
-       well_founded (search_order k t))
+  (wf_search : forall k t, well_founded (search_order k t))
 
-  (search_order_trans :                                           forall k t ec0 ec1 ec2,
-       k, t |~ ec0 << ec1 -> k, t |~ ec1 << ec2 -> k,t |~ ec0 << ec2)
+  (search_order_trans : forall k t, Transitive (search_order k t))
 
   (search_order_comp_if :
                              forall t k k' k'' (ec0 : elem_context_kinded k k') 
@@ -79,17 +53,7 @@ Module Type REF_STRATEGY (PR : PRE_REF_SEM) <: RED_STRATEGY PR.
 End REF_STRATEGY.
 
 
-
-
-
-Module Type RED_REF_SEM <: RED_SEM.
-
-  Declare Module R  : RED_SEM.
-  Declare Module ST : RED_STRATEGY_STEP R.
-
-  Include R.
-  Export ST.
-
+Module REF_Relations (Import R : RED_SEM) (Import ST : RED_STRATEGY_STEP R).
 
   Inductive refocus_in {k1} : forall {k2}, term -> context k1 k2 -> decomp k1 -> Prop :=
 
@@ -129,6 +93,18 @@ Module Type RED_REF_SEM <: RED_SEM.
   Scheme refocus_in_Ind  := Induction for refocus_in  Sort Prop
     with refocus_out_Ind := Induction for refocus_out Sort Prop.
 
+End REF_Relations.
+
+
+Module Type RED_REF_SEM <: RED_SEM.
+
+  Declare Module R  : RED_SEM.
+  Declare Module ST : RED_STRATEGY_STEP R.
+
+  Include R.
+  Export ST.
+
+  Include REF_Relations R ST.
 
   Axioms
   (refocus_ed_val_eqv_refocus_out :                         forall {k1 k2} (v : value k2)
@@ -170,9 +146,9 @@ Module REF_LANG_Help.
           constructor; auto
       ).
 
-  Context `{term : Type}.
-  Context `{immediate_subterm : term -> term -> Prop}.
-  Context `{wf_immediate_subterm : well_founded immediate_subterm}.
+  Parameter term : Type.
+  Parameter immediate_subterm : term -> term -> Prop.
+  Parameter wf_immediate_subterm : well_founded immediate_subterm.
 
   Ltac prove_sto_wf :=
       exact (wf_clos_trans_l _ _ wf_immediate_subterm).
@@ -197,14 +173,14 @@ End REF_LANG_Help.
 (*** Implementation part ***)
 
 
-Module RedRefSem (PR : PRE_REF_SEM) (ST : REF_STRATEGY PR) <: RED_REF_SEM.
+Module RedRefSem (PR : PRE_REF_SEM) (ST' : REF_STRATEGY PR) <: RED_REF_SEM.
 
   Module RLF := RED_LANG_Facts PR.
   Import PR RLF.
 
 
 
-  Module ST := ST.
+  Module ST := ST'.
   Export ST.
 
   Module R <: RED_SEM.
@@ -265,47 +241,7 @@ Module RedRefSem (PR : PRE_REF_SEM) (ST : REF_STRATEGY PR) <: RED_REF_SEM.
   End R.
 
   Include R.
-
-
-  Inductive refocus_in {k1} : forall {k2}, term -> context k1 k2 -> decomp k1 -> Prop :=
-
-  | ri_red  : forall t {k2} (c : context k1 k2) r,
-                dec_term t k2 = ed_red r -> 
-                refocus_in t c (d_red r c)
-  | ri_val  : forall t {k2} (c : context k1 k2) d v,
-                dec_term t k2 = ed_val v ->
-                refocus_out v c d ->
-                refocus_in t c d
-  | ri_step : forall t {k2} (c : context k1 k2) d t0
-                       {k3} (ec : elem_context_kinded k2 k3),
-               dec_term t k2 = ed_dec k3 t0 ec ->
-               refocus_in t0 (ec=:c) d ->
-               refocus_in t c d
-
-  with refocus_out {k1} : forall {k2}, value k2 -> context k1 k2 -> decomp k1 -> Prop :=
-
-  | ro_end  : forall (v : value k1),
-                refocus_out v [.] (d_val v)
-  | ro_red  : forall {k2 k2'} (ec : elem_context_kinded k2 k2') (c : context k1 k2)
-                                                                       (v : value k2') r,
-                dec_context ec v = ed_red r ->
-                refocus_out v (ec=:c) (d_red r c)
-  | ro_val  : forall {k2 k2'} (ec : elem_context_kinded k2 k2') (c  : context k1 k2)
-                                                                    (v : value k2') d v0,
-                dec_context ec v = ed_val v0 ->
-                refocus_out v0 c d ->
-                refocus_out v (ec=:c) d
-  | ro_step : forall {k2 k2'}  (ec : elem_context_kinded k2 k2') (c : context k1 k2)
-                                                                      (v : value k2') d t
-                {k2''} (ec0 : elem_context_kinded k2 k2''),
-                dec_context ec v = ed_dec k2'' t ec0 ->
-                refocus_in t (ec0=:c) d ->
-                refocus_out v (ec=:c) d.
-
-  Scheme refocus_in_Ind  := Induction for refocus_in  Sort Prop
-    with refocus_out_Ind := Induction for refocus_out Sort Prop.
-
-
+  Include REF_Relations R ST.
 
   Lemma refocus_in_correct :                      forall {k1 k2} t (c : context k1 k2) d,
       refocus_in t c d -> c[t] = d.
@@ -334,7 +270,7 @@ Module RedRefSem (PR : PRE_REF_SEM) (ST : REF_STRATEGY PR) <: RED_REF_SEM.
     induction t using (well_founded_ind wf_subterm_order); intros; subst.
 
     dependent destruction H0;
-        assert (hh := dec_term_correct (v:term) k2); rewrite H0 in hh.
+        assert (hh := dec_term_correct (v:term) k2); rewrite H0 in hh; simpl in hh.
 
     - contradiction (value_redex _ _ hh).
 
@@ -354,7 +290,7 @@ Module RedRefSem (PR : PRE_REF_SEM) (ST : REF_STRATEGY PR) <: RED_REF_SEM.
       { apply (H x)... do 2 econstructor... }
 
       dependent destruction H2;
-          assert (gg := dec_context_correct ec v0); rewrite H2 in gg.
+          assert (gg := dec_context_correct ec v0); rewrite H2 in gg; simpl in gg.
 
       + contradiction (value_redex v r); congruence.
 
@@ -381,7 +317,7 @@ Module RedRefSem (PR : PRE_REF_SEM) (ST : REF_STRATEGY PR) <: RED_REF_SEM.
 
     remember (dec_term v k2) as i;
     assert (hh := dec_term_correct v k2);
-    destruct i; rewrite <- Heqi in hh; symmetry in Heqi.
+    destruct i; rewrite <- Heqi in hh; simpl in hh; symmetry in Heqi.
 
     - contradict (value_redex _ _ hh).
 
@@ -401,7 +337,7 @@ Module RedRefSem (PR : PRE_REF_SEM) (ST : REF_STRATEGY PR) <: RED_REF_SEM.
       { do 2 econstructor... }
       remember (dec_context e x) as i.
       assert (gg := dec_context_correct e x);
-      destruct i; rewrite <- Heqi in gg. 
+      destruct i; rewrite <- Heqi in gg; simpl in gg.
       symmetry in Heqi.
 
       + contradiction (value_redex v r); congruence.
@@ -529,7 +465,7 @@ Module RedRefSem (PR : PRE_REF_SEM) (ST : REF_STRATEGY PR) <: RED_REF_SEM.
     induction e using (well_founded_ind (wf_search k1 r)); intros.
     remember (dec_context ec v) as D eqn:HeqD; destruct D;
     assert (H2 := dec_context_correct ec v);
-    rewrite <- HeqD in H2.
+    rewrite <- HeqD in H2; simpl in H2.
     - constructor 2. 
       assert (r = r0). 
       { apply redex_to_term_injective; congruence. }
@@ -566,7 +502,7 @@ Module RedRefSem (PR : PRE_REF_SEM) (ST : REF_STRATEGY PR) <: RED_REF_SEM.
     induction e using (well_founded_ind (wf_search k v)); intros.
     remember (dec_context ec v0) as D eqn:HeqD; destruct D;
     assert (H3 := dec_context_correct ec v0);
-    rewrite <- HeqD in H3.
+    rewrite <- HeqD in H3; simpl in H3.
     - assert ((v : term) = r).
       { compute; congruence. }
       exfalso; eauto using (value_redex v r).
@@ -599,7 +535,7 @@ Module RedRefSem (PR : PRE_REF_SEM) (ST : REF_STRATEGY PR) <: RED_REF_SEM.
       - apply IHc in H; clear IHc.
        inversion H; dep_subst.
        assert (hh := dec_term_correct (ec):[t] k2);
-       rewrite H3 in hh.
+       rewrite H3 in hh; simpl in hh.
 
         + auto using refocus_in_under_redex.
 
@@ -608,7 +544,7 @@ Module RedRefSem (PR : PRE_REF_SEM) (ST : REF_STRATEGY PR) <: RED_REF_SEM.
           eauto using refocus_in_under_value.
 
         + assert (hh := dec_term_correct (ec):[t] k2);
-          rewrite H1 in hh.
+          rewrite H1 in hh; simpl in hh.
 
           destruct (search_order_comp_if ec:[t] _ _ _ ec0 ec) as [H3 | [H3 | H3]].
           compute...
@@ -638,6 +574,7 @@ Module RedRefSem (PR : PRE_REF_SEM) (ST : REF_STRATEGY PR) <: RED_REF_SEM.
                 - assert (ht := dec_context_correct ec0 v).
                   rewrite H1 in ht.
                   rewrite <- hh in ht.
+                  simpl in ht.
                   destruct (dec_context_term_next _ _ _ _ H1) as (H4', H6).
                   destruct (search_order_comp_if ec:[t] _ _ _ ec2 ec) as [H7|[H7|H7]].
 
@@ -697,7 +634,7 @@ Module RedRefSem (PR : PRE_REF_SEM) (ST : REF_STRATEGY PR) <: RED_REF_SEM.
         symmetry in HeqD;
         destruct D;
         assert (DTC2 := dec_term_correct ec:[t] k2);
-        rewrite HeqD in DTC2;
+        rewrite HeqD in DTC2; simpl in DTC2;
         subst.
         + cut (d = d_red r (c~+c0)).
           { intro; subst; constructor; auto. }
@@ -712,7 +649,7 @@ Module RedRefSem (PR : PRE_REF_SEM) (ST : REF_STRATEGY PR) <: RED_REF_SEM.
 
           dependent destruction H0; dep_subst;
           assert (DCC := dec_context_correct ec v);
-          rewrite H0 in DCC.
+          rewrite H0 in DCC; simpl in DCC.
           * assert (r = r0).
             { apply redex_to_term_injective; congruence. }
             subst.
@@ -754,7 +691,7 @@ Module RedRefSem (PR : PRE_REF_SEM) (ST : REF_STRATEGY PR) <: RED_REF_SEM.
                 destruct D;
                     symmetry in HeqD;
                     assert (ht := dec_context_correct e v); 
-                    rewrite HeqD in ht;
+                    rewrite HeqD in ht; simpl in ht;
                     subst e0.
 
                 - rewrite DTC2 in H1.
@@ -818,7 +755,7 @@ Module RedRefSem (PR : PRE_REF_SEM) (ST : REF_STRATEGY PR) <: RED_REF_SEM.
 
           assert (DCC := dec_context_correct ec v').
           dependent destruction H0;
-          rewrite H0 in DCC.
+          rewrite H0 in DCC; simpl in DCC.
           * exfalso.
             assert ((v : term) = r).
             { congruence. }

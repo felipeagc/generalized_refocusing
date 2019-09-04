@@ -8,6 +8,7 @@ rewriting_system/rewriting_system.v
 rewriting_system/rewriting_system_tracing.v
 abstract_machine/abstract_machine.v
 abstract_machine/abstract_machine_facts.v
+reduction_semantics/path.v
 reduction_semantics/reduction_languages_facts.v
 reduction_semantics/reduction_semantics_facts.v
 reduction_semantics/reduction_semantics.v
@@ -16,7 +17,7 @@ refocusing/refocusing_semantics.v
 refocusing/refocusing_semantics_facts.v
 refocusing/refocusing_machine.v
 refocusing/refocusing_machine_facts.v
-examples/weak_cbnd.v
+examples/addition.v
 examples/cbn_lam.v
 examples/cbn_strict.v
 examples/cbv_lam.v
@@ -30,4 +31,5 @@ examples/lam_ses_no_check.v
 examples/lam_ses_no_test.v
 examples/miniml.v
 examples/miniml_check.v
+examples/weak_cbnd.v
 examples/strong_cbnd.v

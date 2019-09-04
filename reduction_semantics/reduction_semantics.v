@@ -1,15 +1,10 @@
 
 Require Import Relations
-               Program.
-Require Export rewriting_system.
+               Program
+               rewriting_system.
+Require Export path.
 
-
-
-
-(* A signature that formalizes a reduction semantics *)
-
-Module Type RED_SEM.
-
+Module Type RED_MINI_LANG.
   Parameters
   (term          : Type) (* the language *)
   (ckind         : Type) (* the set of reduction/context kinds *)
@@ -32,14 +27,12 @@ Module Type RED_SEM.
   (value         : ckind -> Type)
                         (* the set of repressentations of values of a kind *)
   (redex_to_term : forall {k}, redex k -> term)
-  (value_to_term : forall {k}, value k -> term)
+  (value_to_term : forall {k}, value k -> term).
                         (* coercions from represenations of redexes and values *)
                         (* into terms *)
-  (init_ckind    : ckind)
-                        (* the starting nonterminal in the grammar of reduction *)
-                        (* contexts *)
-  (contract      : forall {k}, redex k -> option term).
-                        (* the contraction relations per each reduction kind *)
+End RED_MINI_LANG.
+
+Module RED_MINI_LANG_Notions (Import R : RED_MINI_LANG).
 
   Notation "ec :[ t ]" := (elem_plug t ec) (at level 0).
   Coercion  value_to_term : value >-> term.
@@ -51,42 +44,34 @@ Module Type RED_SEM.
   (* context, the second is the kind of the hole. *)
   (* We use inside-out representation of contexts, so the topmost symbol on the stack *)
   (* is the elementary context that is closest to the hole. *)
-  Inductive context (k1 : ckind) : ckind -> Type :=
-  | empty : context k1 k1
-  | ccons :                                                                forall {k2 k3}
-            (ec : elem_context_kinded k2 k3), context k1 k2 -> context k1 k3.
-  Arguments empty {k1}. Arguments ccons {k1} {k2} {k3} _ _.
-  Notation "[.]"      := empty.
-  Notation "[.]( k )" := (@empty k).
-  Infix    "=:"       := ccons (at level 60, right associativity).
+  Definition context : ckind -> ckind -> Type := path elem_context_kinded.
 
+  Notation "[.]( k )" := (@empty _ elem_context_kinded k).
 
   (* The function for plugging a term into an arbitrary context *)
   (* I.e., (ec1=:ec2=:..ecn)[t] = ecn[..ec2[ec1:[t]]..] *)
-  Fixpoint plug (t : term) {k1 k2} (c : context k1 k2) : term :=
-      match c with
-      | [.]    => t 
-      | ec=:c' => plug ec:[t] c'
-      end.
+  Definition plug t {k1 k2} (c : context k1 k2) : term :=
+    path_action (@elem_plug) t c.
   Notation "c [ t ]" := (plug t c) (at level 0).
 
+  Definition plug_empty : forall t k, [.](k)[t] = t :=
+    @action_empty _ _ _ (@elem_plug).
 
-  (* Contexts may be composed (i.e., nested). *)
-  (* The first parameter is the internal context, the second is external. *) 
-  Fixpoint compose {k1 k2} (c0 : context k1 k2) 
-                      {k3} (c1 : context k3 k1) : context k3 k2 := 
-      match c0 in context _ k2' return context k3 k2' with
-      | [.]     => c1
-      | ec=:c0' => ec =: compose c0' c1
-      end.
-  Infix "~+" := compose (at level 60, right associativity).
-
+  Definition plug_compose : forall {k1 k2 k3} (c0 : context k1 k2) (c1 : context k3 k1) t,
+          (c0 ~+ c1)[t] = c1[c0[t]] :=
+    @action_compose _ _ _ (@elem_plug).
 
   (* Here we define what it means that an elementary context ec is a prefix of *)
   (* a term t. *) 
   Definition immediate_ec {k0 k1} (ec : elem_context_kinded k0 k1) t := 
       exists t', ec:[t'] = t.
 
+  (* The same for immediate subterms *)
+  Definition immediate_subterm t0 t := exists k1 k2 (ec : elem_context_kinded k1 k2),
+      t = ec:[t0].
+
+  (* Subterm order is the transitive closure of the immediate_subterm relation. *)
+  Definition subterm_order          := clos_trans_1n term immediate_subterm.
 
   (* Decomposition of a term is a pair consisting of a reduction context and *)
   (* a potential redex. Values have no decomposition; we just report that *)
@@ -108,6 +93,20 @@ Module Type RED_SEM.
   Definition dec (t : term) k (d : decomp k) : Prop := 
       t = d.
 
+End RED_MINI_LANG_Notions.
+
+Module Type RED_SEM_BASE.
+  Include RED_MINI_LANG.
+  Parameters
+  (init_ckind    : ckind)
+                        (* the starting nonterminal in the grammar of reduction *)
+                        (* contexts *)
+  (contract      : forall {k}, redex k -> option term).
+                        (* the contraction relations per each reduction kind *)
+End RED_SEM_BASE.
+
+Module RED_SEM_BASE_Notions (Import R : RED_SEM_BASE).
+  Include RED_MINI_LANG_Notions R.
 
   (* Here we define the reduction relation. Term t1 reduces to t2 wrt. k-strategy *)
   (* if t1 decomposes to r : redex k' and c : context k k', and r rewrites (wrt. *)
@@ -123,6 +122,23 @@ Module Type RED_SEM.
   Instance rws : REWRITING_SYSTEM term :=
   { transition := reduce init_ckind }.
 
+  (* Again some technicalities *)
+  Class SafeKRegion (k : ckind) (P : term -> Prop) :=
+  {
+      preservation :                                                        forall t1 t2,
+          P t1  ->  k |~ t1 → t2  ->  P t2;
+      progress :                                                               forall t1,
+          P t1  ->  (exists (v : value k), t1 = v) \/ (exists t2, k |~ t1 → t2)
+  }.
+
+End RED_SEM_BASE_Notions.
+
+(* A signature that formalizes a reduction semantics *)
+
+Module Type RED_SEM.
+
+  Include RED_SEM_BASE.
+  Include RED_SEM_BASE_Notions.
 
   Axioms
 
@@ -152,16 +168,6 @@ Module Type RED_SEM.
   (* Each term (t) can be decomposed wrt. to each substrategy (k) *)
   (decompose_total :                                                          forall k t,
        exists d : decomp k, dec t k d).
-
-
-  (* Again some technicalities *)
-  Class SafeKRegion (k : ckind) (P : term -> Prop) :=
-  {
-      preservation :                                                        forall t1 t2,
-          P t1  ->  k |~ t1 → t2  ->  P t2;
-      progress :                                                               forall t1,
-          P t1  ->  (exists (v : value k), t1 = v) \/ (exists t2, k |~ t1 → t2)
-  }.
 
 End RED_SEM.
 

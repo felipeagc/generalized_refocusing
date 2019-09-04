@@ -266,10 +266,10 @@ Module Lam_NO_HandMachine <: ABSTRACT_MACHINE.
 
   Program Fixpoint context_to_R {k} (c : context k) : R.context R.Eᵏ (ckind_to_R k) :=
       match c with
-      | ap_r t k' c' => R.ccons (R.k_ap_r t)  (context_to_R c')
-      | ap_l a k' c' => R.ccons (R.k_ap_l a)  (context_to_R c')
-      | lam_c x c'   => R.ccons (R.k_lam_c x) (context_to_R c')
-      | hole         => R.empty
+      | ap_r t k' c' => pcons (R.k_ap_r t)  (context_to_R c')
+      | ap_l a k' c' => pcons (R.k_ap_l a)  (context_to_R c')
+      | lam_c x c'   => pcons (R.k_lam_c x) (context_to_R c')
+      | hole         => empty
       end.
 
 
@@ -277,11 +277,11 @@ Module Lam_NO_HandMachine <: ABSTRACT_MACHINE.
       {k} (c : R.context R.Eᵏ k) : context (ckind_from_R k) :=
 
       match c with
-      | R.empty => hole
-      | @R.ccons _ k' _ ec c' => 
+      | [.] => hole
+      | ec=:c' =>
             match ec with
-            | R.k_ap_r t  => ap_r t (ckind_from_R k') (context_from_R c')
-            | R.k_ap_l a  => ap_l a (ckind_from_R k') (context_from_R c')
+            | R.k_ap_r t  => ap_r t (ckind_from_R _) (context_from_R c')
+            | R.k_ap_l a  => ap_l a (ckind_from_R _) (context_from_R c')
             | R.k_lam_c x => lam_c x (context_from_R c')
             end
       end.

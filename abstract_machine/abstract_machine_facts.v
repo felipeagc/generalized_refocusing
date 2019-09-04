@@ -1,4 +1,7 @@
-Require Import Entropy 
+Require Import Coq.Logic.ConstructiveEpsilon
+               Util
+               Entropy
+               rewriting_system
                abstract_machine.
 
 
@@ -79,16 +82,8 @@ Module DetAbstractMachine_Sim (AM : DET_ABSTRACT_MACHINE).
   Module AMF := DET_ABSTRACT_MACHINE_Facts AM.
   Import AM AMF.
 
-
-  Fixpoint n_steps (c : configuration) (n : nat) : option configuration :=
-      match n with
-      | 0   => Some c
-      | S n => match dnext_conf c with
-               | None    => None
-               | Some c' => n_steps c' n
-               end
-      end.
-
+  Definition n_steps (c : configuration) (n : nat) : option configuration :=
+    option_n_binds n dnext_conf c.
 
   Lemma n_steps_correct :                                                 forall c1 n c2,
       n_steps c1 n = Some c2  ->  c1 →* c2.
@@ -105,7 +100,7 @@ Module DetAbstractMachine_Sim (AM : DET_ABSTRACT_MACHINE).
 
     - remember (dnext_conf c1) as c1'.
       destruct c1';
-          simpl in H;
+          unfold n_steps in H; simpl in H;
           rewrite <- Heqc1' in *.
       + constructor 2 with c.
         * apply dnext_correct...
@@ -124,7 +119,7 @@ Module DetAbstractMachine_Sim (AM : DET_ABSTRACT_MACHINE).
     - destruct IHclos_refl_trans_1n as (n, ?).
       apply dnext_correct in H.
       eexists (S n).
-      simpl.
+      cbn.
       rewrite H.
       auto.
   Qed.
@@ -183,6 +178,70 @@ Module DetAbstractMachine_Sim (AM : DET_ABSTRACT_MACHINE).
     destruct c
 
 END Hell *)
+
+  (* List of numbered configurations while executing the machine on configuration c
+     for n steps and starting the numbering from i  *)
+  Fixpoint list_configs c n i :=
+   match n with
+   | 0 => nil
+   | S n' =>  match c with
+              | None => nil
+              | Some c' => cons (i,c')  (list_configs (n_steps c' 1) n' (S i))
+              end
+   end.
+
+
+  (* List of numbered configurations while executing the machine for n steps on term t *)
+  Fixpoint list_configurations t n := list_configs (Some (load t)) n 1.
+
+
+
+
+  Definition O_witness_from_ex : forall (P : nat -> Prop),
+    (exists n, P n) -> before_witness P 0 :=
+    fun P nH => match nH with
+    | ex_intro _ n H => O_witness P n (stop P n H)
+    end.
+
+  Definition n_steps_terminate c n := exists c', n_steps c n = Some c' /\ dnext_conf c' = None.
+
+  Definition n_steps_terminate_dec :
+    forall c n c', n_steps c n = c' -> {n_steps_terminate c n}+{~n_steps_terminate c n}.
+  Proof.
+    intros ? ? [c'|] ?; try(destruct (dnext_conf c') eqn:H').
+    1,3: right; intros [? [? ?]]; congruence.
+    left. exists c'. auto.
+  Qed.
+
+  Fixpoint last_configuration_aux c m c' (H : n_steps c m = c')
+    (b : before_witness (n_steps_terminate c) m) :
+    {n & {c'' | n_steps_terminate c n /\ n_steps c n = c''}}.
+  refine (match n_steps_terminate_dec c m c' H with
+  | left yes => existT _ m (exist _ c' (conj yes H))
+  | right no => last_configuration_aux c (S m)
+                (option_bind c' dnext_conf) _
+                (inv_before_witness _ m b no)
+  end).
+  + cbn.
+    rewrite option_n_binds_assoc, <- H.
+    reflexivity.
+  Defined.
+
+  Definition last_configuration c (H : exists n, n_steps_terminate c n) :
+    nat * configuration.
+  Proof.
+    destruct (last_configuration_aux c 0 (Some c) eq_refl (O_witness_from_ex _ H))
+      as [n [[c'|] [H' ?]]].
+    + exact (n, c').
+    + exfalso.
+      destruct H' as [? [? _]].
+      congruence.
+  Defined.
+
+  Definition eval (t : term) (H : exists n, n_steps_terminate (load t) n) : option value :=
+    match last_configuration (load t) H with
+    | (_, c) => final c
+    end.
 
 End DetAbstractMachine_Sim.
 

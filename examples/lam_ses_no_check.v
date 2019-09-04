@@ -258,7 +258,7 @@ Module Lam_SES_NO_HandMachine <: ABSTRACT_MACHINE.
   Notation "[$ t , k , c $]" := (@c_eval t k c )              (t, c at level 99).
   Notation "[: c , v  :]"     := (c_apply c v )                (c, v at level 99).
   Notation "[: ( ec , k ) =: c , v  :]" := 
-      (c_apply (@ccons _ k _  ec c) v )                       (ec, k, c, v at level 99).
+      (c_apply (@pcons _ _ _ k _  ec c) v )                       (ec, k, c, v at level 99).
 
   Definition dnext_conf (st : configuration) : option configuration :=
       match st with
