@@ -158,43 +158,43 @@ Module Lam_cbnd_PreRefSem <: PRE_REF_SEM.
   Coercion struct_to_term : struct >-> term.
 
   (* term that is decomposed as active variable in context *)
-  Inductive in_ctx : ck -> var -> vars -> Type :=
-  | inctxVar : forall {k} x, in_ctx k x ⋄ (* x ∈ cˣ_{}_k *)
-  | inctxApp_l : forall {k} x xs,
-      ~ In x xs -> in_ctx E x xs -> expr ->
-      in_ctx k x xs (* cˣ_{xs}_E @ e ∈ cˣ_{xs}_k *)
-  | inctxApp_r : forall {k} x xs ys,
+  Inductive needy : ck -> var -> vars -> Type :=
+  | needyVar : forall {k} x, needy k x ⋄ (* x ∈ cˣ_{}_k *)
+  | needyApp_l : forall {k} x xs,
+      ~ In x xs -> needy E x xs -> expr ->
+      needy k x xs (* cˣ_{xs}_E @ e ∈ cˣ_{xs}_k *)
+  | needyApp_r : forall {k} x xs ys,
       ~ In x (xs ++ ys) -> struct ys ->
-      in_ctx C x xs -> in_ctx k x (ys +++ xs) (* s_{ys} @ cˣ_{xs}_C ∈ cˣ_{ys+xs}_k *)
-  | inctxLam : forall x y xs,
-      x <> y -> in_ctx C y xs ->
-      in_ctx C y (set_remove eq_var x xs) (* λ x. cʸ_{xs}_C ∈ cʸ_{xs\x}_C *)
-  | inctxSub : forall {k} x y xs,
-      x <> y -> ~In x xs -> in_ctx k y xs -> expr ->
-      in_ctx k y xs  (* let x = e in cʸ_{xs}_k ∈ cʸ_{xs}_k *)
-  | inctxNdSub : forall {k} x y xs zs,
-      x <> y -> ~ In y xs -> struct xs -> in_ctx k y zs ->
-      in_ctx k y (xs +++ (set_remove eq_var x zs))
+      needy C x xs -> needy k x (ys +++ xs) (* s_{ys} @ cˣ_{xs}_C ∈ cˣ_{ys+xs}_k *)
+  | needyLam : forall x y xs,
+      x <> y -> needy C y xs ->
+      needy C y (set_remove eq_var x xs) (* λ x. cʸ_{xs}_C ∈ cʸ_{xs\x}_C *)
+  | needySub : forall {k} x y xs,
+      x <> y -> ~In x xs -> needy k y xs -> expr ->
+      needy k y xs  (* let x = e in cʸ_{xs}_k ∈ cʸ_{xs}_k *)
+  | needyNdSub : forall {k} x y xs zs,
+      x <> y -> ~ In y xs -> struct xs -> needy k y zs ->
+      needy k y (xs +++ (set_remove eq_var x zs))
   (* let x := s_{xs} in cʸ_{zs}_k ∈ cʸ_{xs+zs\x}_k *)
-  | inctxNdSub2 : forall {k} y xs,
-      var -> in_ctx E y xs -> expr -> in_ctx k y xs
+  | needyNdSub2 : forall {k} y xs,
+      var -> needy E y xs -> expr -> needy k y xs
   (* let x := cʸ_{xs}_E in e ∈ cʸ_{xs}_k *).
 
-  Fixpoint nf_to_term {k} {x} {xs} (neu : in_ctx k x xs) {struct neu} : term :=
-    match neu with
-    | inctxVar x => #x
-    | inctxApp_l x xs _ n e => (nf_to_term n) @ e
-    | inctxApp_r x xs ys _ s neu' => (struct_to_term s) @ (nf_to_term neu')
-    | inctxLam x y xs  _ neu' => λ x, (nf_to_term neu')
-    | inctxSub x y xs _ _ n e => Let x e (nf_to_term n)
-    | inctxNdSub x y xs _  _ _ s n => LetNd x (struct_to_term s) (nf_to_term n)
-    | inctxNdSub2 y xs x ny nx => LetNd x  (nf_to_term ny) nx
+  Fixpoint needy_to_term {k} {x} {xs} (nee : needy k x xs) : term :=
+    match nee with
+    | needyVar x => #x
+    | needyApp_l x xs _ n e => (needy_to_term n) @ e
+    | needyApp_r x xs ys _ s nee' => (struct_to_term s) @ (needy_to_term nee')
+    | needyLam x y xs  _ nee' => λ x, (needy_to_term nee')
+    | needySub x y xs _ _ n e => Let x e (needy_to_term n)
+    | needyNdSub x y xs _  _ _ s n => LetNd x (struct_to_term s) (needy_to_term n)
+    | needyNdSub2 y xs x ny nx => LetNd x  (needy_to_term ny) nx
     end.
-  Coercion nf_to_term : in_ctx >-> term.
+  Coercion needy_to_term : needy >-> term.
 
   (* in terms cˣ_{xs}_k, x ∉ xs *)
-  Lemma inctx_var_notin_frozen :
-    forall {k} x xs, @in_ctx k x xs -> ~ In x xs.
+  Lemma needy_var_notin_frozen :
+    forall {k} x xs, @needy k x xs -> ~ In x xs.
   Proof.
     induction 1;
       intro H; try elim H; auto.
@@ -214,28 +214,17 @@ Module Lam_cbnd_PreRefSem <: PRE_REF_SEM.
       eauto.
   Qed.
 
-  Hint Resolve inctx_var_notin_frozen.
+  Hint Resolve needy_var_notin_frozen.
 
   (* notation for iteration of explicit substitutions with simple let *)
   Inductive sub : Type :=
   | subMt : sub
   | subCons : var -> expr -> sub -> sub.
 
-  (* notation for iteration of explicit substitutions with two kinds of lets*)
-  Inductive sub_ext : Type :=
-  | subSimple : sub -> sub_ext
-  | subNd : var -> expr -> sub_ext -> sub_ext.
-
   Fixpoint sub_to_term (s : sub) (t : term) :=
     match s with
     | subMt => t
     | subCons x r s' => Let x r (sub_to_term s' t)
-    end.
-
-  Fixpoint sub_ext_to_term (s : sub_ext) (t : term) :=
-    match s with
-    | subSimple s => sub_to_term s t
-    | subNd x r s' => LetNd x r (sub_ext_to_term s' t)
     end.
 
   (* values *)
@@ -246,8 +235,8 @@ Module Lam_cbnd_PreRefSem <: PRE_REF_SEM.
   | vStruct : forall {k} {xs} ys (Hnd : NoDup ys),
       Subset xs ys -> struct xs -> val (ckv k Hnd)
   (* s_{xs} ∈ Val^_{ys}_k *)
-  | vNeu : forall {k} {xs} x ys (Hnd : NoDup ys),
-      ~In x ys -> Subset xs ys -> in_ctx k x xs -> val (ckv k Hnd)
+  | vNeedy : forall {k} {xs} x ys (Hnd : NoDup ys),
+      ~In x ys -> Subset xs ys -> needy k x xs -> val (ckv k Hnd)
   (* cˣ_{xs}_k ∈ Val^{ys}_k *)
   | vELam : forall xs (Hnd : NoDup xs),
       var -> term -> sub -> val (ckv E Hnd)
@@ -261,7 +250,7 @@ Module Lam_cbnd_PreRefSem <: PRE_REF_SEM.
     match v with
     | vCLam _ _ _ n => lambda_normal_to_term n
     | vStruct _ _ _ s  => struct_to_term s
-    | vNeu _ _ _ _ _ n => nf_to_term n
+    | vNeedy _ _ _ _ _ n => needy_to_term n
     | vELam _ _ x t s => sub_to_term s (Lam x t)
     end.
 
@@ -279,7 +268,7 @@ Module Lam_cbnd_PreRefSem <: PRE_REF_SEM.
       term -> var -> term -> sub -> red (ckv k Hnd)
   (* Let x := (Lam y. t2)[sub] in n ∈ Red^{xs}_k *)
   | rSubNd : forall {k} x xs ys {Hnd : NoDup ys},
-      Subset xs ys -> in_ctx k x xs -> term -> red (ckv k Hnd)
+      Subset xs ys -> needy k x xs -> term -> red (ckv k Hnd)
   (* Let x = t in cˣ_{xs} ∈ Red^{ys}_k *)
   | rSubWrong : forall {k} x xs ys zs {Hnd : NoDup ys},
       Subset xs ys -> Subset zs ys -> ~ In x zs -> struct xs -> struct zs -> red (ckv k Hnd)
@@ -360,9 +349,9 @@ Module Lam_cbnd_PreRefSem <: PRE_REF_SEM.
   Hint Resolve struct_not_lambda.
 
   (* variable in context cannot begin with lambda *)
-  Lemma inctx_E_not_sub_lambda :
-    forall k x xs (s: in_ctx k x xs)  t,
-      nf_to_term s = t -> forall v s0 r,
+  Lemma needy_E_not_sub_lambda :
+    forall k x xs (s: needy k x xs)  t,
+      needy_to_term s = t -> forall v s0 r,
         t = sub_to_term s0 (λ v, r) -> k = E ->  False.
   Proof with eauto.
     induction s; destruct t; intros; inversion H; subst;
@@ -371,7 +360,7 @@ Module Lam_cbnd_PreRefSem <: PRE_REF_SEM.
     injection H0; intros...
   Qed.
 
-  Hint Resolve inctx_E_not_sub_lambda.
+  Hint Resolve needy_E_not_sub_lambda.
 
   Definition forall_normal_forms
    (pred :
@@ -441,25 +430,25 @@ Module Lam_cbnd_PreRefSem <: PRE_REF_SEM.
 
   Hint Resolve struct_NoDup.
 
-  Lemma neutral_NoDup :
-    forall {k} {x} {xs} (n : in_ctx k x xs),
+  Lemma needy_NoDup :
+    forall {k} {x} {xs} (n : needy k x xs),
       NoDup xs.
   Proof with auto.
-    apply in_ctx_ind; intros...
+    induction 1; intros...
     constructor.
   Qed.
 
-  Hint Resolve lambda_normal_NoDup normal_NoDup neutral_NoDup.
+  Hint Resolve lambda_normal_NoDup normal_NoDup needy_NoDup.
 
-  Lemma all_normal_forms_vars_neutral :
+  Lemma all_normal_forms_needy_in_vars :
     forall_normal_forms (fun normal_form to_term =>
-      forall xs (s: normal_form xs) k x ys (n : in_ctx k x ys),
-        to_term _ s = nf_to_term n -> In x xs).
+      forall xs (s: normal_form xs) k x ys (n : needy k x ys),
+        to_term _ s = needy_to_term n -> In x xs).
   Proof with eauto.
     apply all_normal_forms_ind;
       simpl; intros; subst;
       match goal with
-      | [ n : in_ctx _ _ _ |- _ ] => dependent destruction n
+      | [ n : needy _ _ _ |- _ ] => dependent destruction n
       | _ => idtac
       end; try discriminate...
     +
@@ -513,39 +502,39 @@ Module Lam_cbnd_PreRefSem <: PRE_REF_SEM.
   Qed.
 
   (* if cˣ_{ys}_k = n_{xs} then x ∈ xs *)
-  Lemma normal_vars_neutral :
-    forall xs (s: normal xs) k x ys (n : in_ctx k x ys),
-      normal_to_term s = nf_to_term n -> In x xs.
-  Proof. apply all_normal_forms_vars_neutral. Qed.
+  Lemma normal_needy_in_vars :
+    forall xs (s: normal xs) k x ys (n : needy k x ys),
+      normal_to_term s = needy_to_term n -> In x xs.
+  Proof. apply all_normal_forms_needy_in_vars. Qed.
 
   (* if cˣ_{ys}_k = ln_{xs} then x ∈ xs *)
-  Lemma lambda_normal_vars_neutral :
-    forall xs (s: lambda_normal xs) k x ys (n : in_ctx k x ys),
-      lambda_normal_to_term s = nf_to_term n -> In x xs.
-  Proof. apply all_normal_forms_vars_neutral. Qed.
+  Lemma lambda_normal_needy_in_vars :
+    forall xs (s: lambda_normal xs) k x ys (n : needy k x ys),
+      lambda_normal_to_term s = needy_to_term n -> In x xs.
+  Proof. apply all_normal_forms_needy_in_vars. Qed.
 
   (* if cˣ_{ys}_k = s_{xs} then x ∈ xs *)
-  Lemma struct_vars_neutral :
-    forall xs (s: struct xs) k x ys (n : in_ctx k x ys),
-      struct_to_term s = nf_to_term n -> In x xs.
-  Proof. apply all_normal_forms_vars_neutral. Qed.
+  Lemma struct_needy_in_vars :
+    forall xs (s: struct xs) k x ys (n : needy k x ys),
+      struct_to_term s = needy_to_term n -> In x xs.
+  Proof. apply all_normal_forms_needy_in_vars. Qed.
 
-  Hint Resolve normal_vars_neutral lambda_normal_vars_neutral struct_vars_neutral.
+  Hint Resolve normal_needy_in_vars lambda_normal_needy_in_vars struct_needy_in_vars.
 
-  Lemma neutral_to_term_vars :
-    forall {k} {x} {xs} (n : in_ctx k x xs) y ys (n' : in_ctx k y ys),
-      nf_to_term n = nf_to_term n' -> x <> y -> In x ys \/ In y xs.
+  Lemma needy_to_term_vars :
+    forall {k} {x} {xs} (n : needy k x xs) y ys (n' : needy k y ys),
+      needy_to_term n = needy_to_term n' -> x <> y -> In x ys \/ In y xs.
   Proof with eauto.
     induction n; intros;
       dependent destruction n'; try discriminate; inversion H; subst...
     +
       elim H0...
     +
-      assert (hh:=struct_vars_neutral  _ _ _ _ _ _ (eq_sym H2)).
+      assert (hh:=struct_needy_in_vars  _ _ _ _ _ _ (eq_sym H2)).
       left.
       apply set_union_intro1...
     +
-      assert (hh:=struct_vars_neutral  _ _ _ _ _ _ H2).
+      assert (hh:=struct_needy_in_vars  _ _ _ _ _ _ H2).
       right.
       apply set_union_intro1...
     +
@@ -572,20 +561,20 @@ Module Lam_cbnd_PreRefSem <: PRE_REF_SEM.
       apply set_union_intro; right...
       apply set_remove_3...
     +
-      assert (hh:=struct_vars_neutral  _ _ _ _ _ _ H3).
+      assert (hh:=struct_needy_in_vars  _ _ _ _ _ _ H3).
       right.
       apply set_union_intro; left...
     +
-      assert (hh:=struct_vars_neutral  _ _ _ _ _ _ (eq_sym H3)).
+      assert (hh:=struct_needy_in_vars  _ _ _ _ _ _ (eq_sym H3)).
       left.
       apply set_union_intro; left...
   Qed.
 
 
-  Lemma neutral_to_term_injective :
-    forall k x xs (n : in_ctx k x xs) ys (n' : in_ctx k x ys),
-      nf_to_term n = nf_to_term n' ->
-      @eq_dep vars (fun xs => in_ctx k x xs) xs n ys n'.
+  Lemma needy_to_term_injective :
+    forall k x xs (n : needy k x xs) ys (n' : needy k x ys),
+      needy_to_term n = needy_to_term n' ->
+      @eq_dep vars (fun xs => needy k x xs) xs n ys n'.
   Proof with eauto.
     induction n; intros; dependent destruction n'; try discriminate; inversion H; subst...
     +
@@ -594,10 +583,10 @@ Module Lam_cbnd_PreRefSem <: PRE_REF_SEM.
       rewrite proof_irrelevance with _ n n1...
       dependent destruction H4...
     +
-      assert (hh:=struct_vars_neutral _ _ _ _ _ _ (eq_sym H1)).
+      assert (hh:=struct_needy_in_vars _ _ _ _ _ _ (eq_sym H1)).
       elim n1...
     +
-      assert (hh:=struct_vars_neutral _ _ _ _ _ _ H1).
+      assert (hh:=struct_needy_in_vars _ _ _ _ _ _ H1).
       elim n...
     +
       elim struct_to_term_injective with s _ s0; intros; subst.
@@ -619,10 +608,10 @@ Module Lam_cbnd_PreRefSem <: PRE_REF_SEM.
       rewrite proof_irrelevance with _ n n2...
       rewrite proof_irrelevance with _ n0 n3...
     +
-      assert (hh:=struct_vars_neutral _ _ _ _ _ _ H2).
+      assert (hh:=struct_needy_in_vars _ _ _ _ _ _ H2).
       elim n0...
     +
-      assert (hh:=struct_vars_neutral _ _ _ _ _ _ (eq_sym H2)).
+      assert (hh:=struct_needy_in_vars _ _ _ _ _ _ (eq_sym H2)).
       elim n1...
     +
       destruct (IHn _ _ H2); subst...
@@ -670,7 +659,7 @@ Module Lam_cbnd_PreRefSem <: PRE_REF_SEM.
     +
       eelim struct_not_lambda...
     +
-      assert (hh:=lambda_normal_vars_neutral _ l _ _ _ _ H1)...
+      assert (hh:=lambda_normal_needy_in_vars _ l _ _ _ _ H1)...
       elim n...
     +
       eelim struct_not_lambda...
@@ -679,33 +668,33 @@ Module Lam_cbnd_PreRefSem <: PRE_REF_SEM.
       rewrite H0.
       rewrite proof_irrelevance with _ s s1...
     +
-      assert (hh:=struct_vars_neutral _ s0 _ _ _  i H1).
+      assert (hh:=struct_needy_in_vars _ s0 _ _ _  n0 H1).
       elim subset_not_in with xs ys x0...
     +
       eelim struct_not_sub_lambda...
     +
-      assert (hh:=lambda_normal_vars_neutral _ l _ _ _ _ (eq_sym H1))...
+      assert (hh:=lambda_normal_needy_in_vars _ l _ _ _ _ (eq_sym H1))...
       elim n...
     +
-      assert (hh:=struct_vars_neutral _ s1 _ _ _  i (eq_sym H1)).
+      assert (hh:=struct_needy_in_vars _ s1 _ _ _  n0 (eq_sym H1)).
       elim subset_not_in with xs0 ys x0...
     +
       case_eq (eq_var x1 x0); intros; subst...
-      assert (h:=neutral_to_term_injective _ _ _ _ _ _ H1)...
+      assert (h:=needy_to_term_injective _ _ _ _ _ _ H1)...
       inversion h...
       subst...
       dependent destruction H5.
       rewrite proof_irrelevance with _ s  s0...
-      rewrite proof_irrelevance with _ n  n0...
-      eelim neutral_to_term_vars; intros; subst...
+      rewrite proof_irrelevance with _ n  n1...
+      eelim needy_to_term_vars; intros; subst...
       elim n...
-      elim n0...
+      elim n1...
     +
-      eelim inctx_E_not_sub_lambda...
+      eelim needy_E_not_sub_lambda...
     +
       eelim struct_not_sub_lambda...
     +
-      eelim inctx_E_not_sub_lambda...
+      eelim needy_E_not_sub_lambda...
     +
       eelim sub_to_term_val_injective; intros; subst...
       subst.
@@ -729,13 +718,13 @@ Module Lam_cbnd_PreRefSem <: PRE_REF_SEM.
     +
       simpl in *.
       inversion H1; subst.
-      eelim (struct_not_sub_lambda); eauto.
-    +
       eelim struct_not_sub_lambda; eauto.
     +
       eelim struct_not_sub_lambda; eauto.
     +
-      assert (hh:=neutral_to_term_injective _ _ _ i _ i0 H4).
+      eelim struct_not_sub_lambda; eauto.
+    +
+      assert (hh:=needy_to_term_injective _ _ _ n _ n0 H4).
       inversion hh.
       dependent destruction H5.
       rewrite proof_irrelevance with _ s s0.
@@ -800,12 +789,12 @@ Module Lam_cbnd_PreRefSem <: PRE_REF_SEM.
   | k_ap_l_E  : forall {k} xs ys (Hnd : NoDup xs),
       Subset ys xs -> struct ys -> eck (ckv k Hnd) (ckv C Hnd)
   (* s_{ys} []^{xs}_C ∈ EC^{xs}_k *)
-  | in_let : forall {k} xs (x : var) (Hnd : NoDup xs),
+  | k_let : forall {k} xs (x : var) (Hnd : NoDup xs),
       ~ In x xs -> term -> eck (ckv k  Hnd) (ckv k Hnd)
   (* let x = t in []^{xs}_k ∈ EC^{xs}_k *)
-  | let_var : forall {k} xs (x:var) (Hnd : NoDup xs),
+  | k_definiens : forall {k} xs (x:var) (Hnd : NoDup xs),
       expr -> eck (ckv k Hnd) (ckv E Hnd) (* let x := []^{xs}_E in n ∈ EC^{xs}_k *)
-  | let_var2 : forall {k} x xs ys (Hnd : NoDup ys) (HIn : ~In x ys),
+  | k_letnd : forall {k} x xs ys (Hnd : NoDup ys) (HIn : ~In x ys),
       Subset xs ys -> struct xs ->
       eck (ckv k Hnd) (@ckv k (x::ys) (NoDup_cons Hnd HIn))
   (* let x := s_{xs} in []^{x,ys}_k ∈ EC^{ys}_k *).
@@ -816,13 +805,13 @@ Module Lam_cbnd_PreRefSem <: PRE_REF_SEM.
   Notation " 'λc' x ',' '□' " := (k_lam_c x _ _) (at level 50, no associativity).
   Notation " '□' t " := (k_ap_r _ t) (at level 51).
   Notation " s '□' " := (k_ap_l_E _ _ _ _ s) (at level 51).
-  Notation " 'let1' k ',' x '=' t 'in' '□' " := (@in_let k _ x _ _ t) (at level 50, x ident).
-  Notation " 'let_E' x '=' t 'in' '□' " := (@in_let E _ x _ _ t) (at level 50, x ident).
-  Notation " 'let_C' x '=' t 'in' '□' " := (@in_let C _ x _ _ t) (at level 50, x ident).
-  Notation " 'let' k ',' x ':=' □ '^' xs 'in' t " := (@let_var k xs x _ t) (at level 50, x ident).
-  Notation " 'let2_C' x ':=' s 'in' □ " := (@let_var2 C x _ _ _ _ _ s) (at level 50, x ident).
-  Notation " 'let2_E' x ':=' s 'in' □ " := (@let_var2 E x _ _ _ _ _ s) (at level 50, x ident).
-  Notation " 'let2' x ':=' s 'in' □ " := (@let_var2 _ x _ _ _ _ _ s) (at level 50, x ident).
+  Notation " 'let1' k ',' x '=' t 'in' '□' " := (@k_let k _ x _ _ t) (at level 50, x ident).
+  Notation " 'let_E' x '=' t 'in' '□' " := (@k_let E _ x _ _ t) (at level 50, x ident).
+  Notation " 'let_C' x '=' t 'in' '□' " := (@k_let C _ x _ _ t) (at level 50, x ident).
+  Notation " 'let' k ',' x ':=' □ '^' xs 'in' t " := (@k_definiens k xs x _ t) (at level 50, x ident).
+  Notation " 'let2_C' x ':=' s 'in' □ " := (@k_letnd C x _ _ _ _ _ s) (at level 50, x ident).
+  Notation " 'let2_E' x ':=' s 'in' □ " := (@k_letnd E x _ _ _ _ _ s) (at level 50, x ident).
+  Notation " 'let2' x ':=' s 'in' □ " := (@k_letnd _ x _ _ _ _ _ s) (at level 50, x ident).
 
 
   (* The starting symbol in the grammar *)
@@ -906,7 +895,7 @@ Module Lam_cbnd_PreRefSem <: PRE_REF_SEM.
     +
       destruct s0; discriminate.
     +
-      dependent destruction i; try discriminate; inversion H1; subst...
+      dependent destruction n0; try discriminate; inversion H1; subst...
       simpl in *.
       assert (Subset xs1 (x::xs)).
       unfold Subset in *; intros; subst...
@@ -917,7 +906,7 @@ Module Lam_cbnd_PreRefSem <: PRE_REF_SEM.
       assert (~In y (x::xs)).
       intro.
       destruct H2; subst...
-      exists (vNeu _ _ _ H2 H0 i)...
+      exists (vNeedy _ _ _ H2 H0 n2)...
     +
       destruct l; try discriminate; inversion H1; subst.
     +
@@ -929,9 +918,9 @@ Module Lam_cbnd_PreRefSem <: PRE_REF_SEM.
       apply set_union_intro1...
       exists (vStruct _ _ H0 s0)...
     +
-      dependent destruction i; try discriminate;
+      dependent destruction n0; try discriminate;
         inversion H1; subst.
-      exists (vNeu _ _ _ n s i)...
+      exists (vNeedy _ _ _ n s n1)...
       assert (Subset ys xs)...
       unfold Subset in *; intros; subst...
       apply s.
@@ -956,8 +945,8 @@ Module Lam_cbnd_PreRefSem <: PRE_REF_SEM.
       apply set_union_intro2...
       exists (vCLam _ _ H3 l)...
     +
-      dependent destruction i; try discriminate; inversion H1; subst...
-      assert (hh:=struct_vars_neutral _ _ _ _ _ _ H2).
+      dependent destruction n0; try discriminate; inversion H1; subst...
+      assert (hh:=struct_needy_in_vars _ _ _ _ _ _ H2).
       elim n...
       elim struct_to_term_injective with s0 _ s2; intros; subst...
       simpl in *.
@@ -965,7 +954,7 @@ Module Lam_cbnd_PreRefSem <: PRE_REF_SEM.
       unfold Subset in *; intros; eauto.
       eapply s1; eauto.
       apply set_union_intro2...
-      exists (vNeu _ _ _ n H3 i)...
+      exists (vNeedy _ _ _ n H3 n1)...
     +
       destruct s1; discriminate.
     +
@@ -975,9 +964,9 @@ Module Lam_cbnd_PreRefSem <: PRE_REF_SEM.
       destruct s0; try discriminate; inversion H1; subst.
       exists (vStruct _ _ s s0)...
     +
-      destruct i; try discriminate; inversion H1; subst...
+      destruct n1; try discriminate; inversion H1; subst...
       simpl in *.
-      exists (vNeu _ _ _ n0 s i)...
+      exists (vNeedy _ _ _ n0 s n3)...
     +
       destruct s; try discriminate...
       inversion H1; subst...
@@ -997,14 +986,14 @@ Module Lam_cbnd_PreRefSem <: PRE_REF_SEM.
       apply set_union_intro1...
       exists (vStruct _ _ H0 s0_1)...
     +
-      dependent destruction i; try discriminate; inversion H1; subst...
+      dependent destruction n0; try discriminate; inversion H1; subst...
       simpl in *.
       assert (Subset xs0 xs)...
       unfold Subset in *; intros; eauto.
       eapply s; eauto.
       apply set_union_intro1...
       exists (vStruct _ _ H0 s0)...
-      exists (vNeu _ _ _ n s i)...
+      exists (vNeedy _ _ _ n s n0)...
     +
       destruct s; try discriminate.
     +
@@ -1066,7 +1055,7 @@ Module Lam_cbnd_PreRefSem <: PRE_REF_SEM.
       apply set_union_intro2...
       exists (vStruct _ _ H2 s2_2)...
     +
-      dependent destruction i; try discriminate; inversion H1; subst...
+      dependent destruction n0; try discriminate; inversion H1; subst...
       elim struct_to_term_injective with s0 _ s2; intros; subst...
       assert (Subset zs (x :: ys))...
       unfold Subset; intros...
@@ -1079,8 +1068,8 @@ Module Lam_cbnd_PreRefSem <: PRE_REF_SEM.
       assert (~ In y (x :: ys))...
       intro.
       destruct H4; subst...
-      exists (vNeu _ _ _ H4 H2 i)...
-      assert (hh:=struct_vars_neutral _ _ _ _ _ _ H3)...
+      exists (vNeedy _ _ _ H4 H2 n2)...
+      assert (hh:=struct_needy_in_vars _ _ _ _ _ _ H3)...
       unfold Subset in *; intros; subst; eauto.
       elim n.
       auto.
@@ -1116,16 +1105,16 @@ Module Lam_cbnd_PreRefSem <: PRE_REF_SEM.
       inversion H1; subst.
     +
       rewrite <- x in H1.
-      destruct i; try discriminate; inversion H1; subst.
+      destruct n0; try discriminate; inversion H1; subst.
       inversion H2; subst.
-      eelim inctx_E_not_sub_lambda with (s0:=subMt) (v:=v1) (r:=t)...
+      eelim needy_E_not_sub_lambda with (s0:=subMt) (v:=v1) (r:=t)...
       eelim struct_not_sub_lambda  with (s0:=subMt) (v:=v1) (r:=t)...
     +
       rewrite <- x in H1.
-      destruct i; try discriminate; inversion H1; subst.
-      dependent destruction i; try discriminate.
+      destruct n0; try discriminate; inversion H1; subst.
+      dependent destruction n1; try discriminate.
       inversion H2; subst.
-      eelim inctx_E_not_sub_lambda...
+      eelim needy_E_not_sub_lambda...
       destruct s1; try discriminate; inversion H2; subst.
       eelim struct_not_sub_lambda...
     +
@@ -1150,7 +1139,7 @@ Module Lam_cbnd_PreRefSem <: PRE_REF_SEM.
       rewrite (proof_irrelevance _ Hnd0 Hnd) in *.
       rewrite <- x in H1.
       inversion H1; subst.
-      dependent destruction i; try discriminate; inversion H1; subst...
+      dependent destruction n0; try discriminate; inversion H1; subst...
       rewrite (proof_irrelevance _ Hnd0 Hnd) in *.
       rewrite <- x in H1.
       simpl in *.
@@ -1166,20 +1155,20 @@ Module Lam_cbnd_PreRefSem <: PRE_REF_SEM.
       dependent destruction l; try discriminate.
       simpl in *.
       inversion H1; subst.
-      assert (hh:=lambda_normal_vars_neutral _ l _ _ _ i H4).
+      assert (hh:=lambda_normal_needy_in_vars _ l _ _ _ n0 H4).
       elim n...
       rewrite (proof_irrelevance _ Hnd0 Hnd) in *.
       rewrite <- x in H1.
       destruct s0; try discriminate; inversion H1; subst.
-      assert (hh:=struct_vars_neutral _ _ _ _ _ _ H4)...
+      assert (hh:=struct_needy_in_vars _ _ _ _ _ _ H4)...
       rewrite (proof_irrelevance _ Hnd0 Hnd) in *.
       rewrite <- x in H1.
-      dependent destruction i; try discriminate; inversion H1; subst.
-      elim (neutral_to_term_vars i _ _ i0); intros...
+      dependent destruction n0; try discriminate; inversion H1; subst.
+      elim (needy_to_term_vars n2 _ _ n3); intros...
       rewrite (proof_irrelevance _ Hnd0 Hnd) in *.
       rewrite <- x in H1.
       destruct s; try discriminate; inversion H1; subst.
-      eelim inctx_E_not_sub_lambda...
+      eelim needy_E_not_sub_lambda...
     +
       intro H.
       dependent destruction v.
@@ -1199,7 +1188,7 @@ Module Lam_cbnd_PreRefSem <: PRE_REF_SEM.
       simpl in *.
       rewrite (proof_irrelevance _ Hnd0 Hnd) in *.
       rewrite <- x in H.
-      destruct i; simpl in *; try discriminate.
+      destruct n0; simpl in *; try discriminate.
       inversion H; subst...
       inversion H; subst...
       simpl in *.
@@ -1224,7 +1213,7 @@ Module Lam_cbnd_PreRefSem <: PRE_REF_SEM.
       simpl in *.
       rewrite (proof_irrelevance _ Hnd0 Hnd) in *.
       rewrite <- x in H.
-      destruct i; simpl in *; try discriminate.
+      destruct n0; simpl in *; try discriminate.
       inversion H; subst...
       inversion H; subst...
     +
@@ -1238,7 +1227,7 @@ Module Lam_cbnd_PreRefSem <: PRE_REF_SEM.
       inversion H; subst...
       rewrite (proof_irrelevance _ Hnd0 Hnd) in *.
       rewrite <- x in H.
-      dependent destruction i; try discriminate.
+      dependent destruction n0; try discriminate.
       simpl in *.
       inversion H; subst...
       simpl in *.
@@ -1263,7 +1252,7 @@ Module Lam_cbnd_PreRefSem <: PRE_REF_SEM.
     +
       eelim struct_not_sub_lambda...
     +
-      exists (vNeu _ _ _ n s i)...
+      exists (vNeedy _ _ _ n0 s n)...
     +
       simpl in *.
       exists (vELam _ _ v t0 s)...
@@ -1319,7 +1308,7 @@ Module Lam_cbn_Strategy <: REF_STRATEGY Lam_cbnd_PreRefSem.
           | Var x     =>
             match in_dec eq_var x xs with (* if x is in xs *)
             | left p => ed_val (vStruct _ _ _ (sVar x)) (* x is struct *)
-            | right p => ed_val (vNeu _ _ _ _ _ (inctxVar x)) (* x is active var in ctx *)
+            | right p => ed_val (vNeedy _ _ _ _ _ (needyVar x)) (* x is active var in ctx *)
             end
           | Lam x t1  => ed_val (vELam _ _ x t1 subMt) (* lambda - weak value *)
           | Let x t1 t2 => _
@@ -1327,10 +1316,10 @@ Module Lam_cbn_Strategy <: REF_STRATEGY Lam_cbnd_PreRefSem.
             | left p => (* name clash; need to rename x with fresh var in let *)
               let f := fresh_for xs in
               ed_dec (ckv E Hnd) ([x:=Var f] t2)
-                     (in_let _ f _ (fresh_for_is_fresh f xs _) t1)
-            | right p => ed_dec (ckv E Hnd) t2 (in_let _ x _ p t1)
+                     (k_let _ f _ (fresh_for_is_fresh f xs _) t1)
+            | right p => ed_dec (ckv E Hnd) t2 (k_let _ x _ p t1)
             end
-          | LetNd x t n => ed_dec _ t (let_var _ _ _ n) (* x is needed - decompose t *)
+          | LetNd x t n => ed_dec _ t (k_definiens _ _ _ n) (* x is needed - decompose t *)
           end
         | @ckv C xs Hnd => (* decomposition under strong strategy *)
           match t with
@@ -1338,7 +1327,7 @@ Module Lam_cbn_Strategy <: REF_STRATEGY Lam_cbnd_PreRefSem.
           | Var x     =>
             match in_dec eq_var x xs with (* if x is in xs *)
             | left p => ed_val (vStruct _ _ _ (sVar x)) (* x is struct *)
-            | right p => ed_val (vNeu _ _ _ _ _ (inctxVar x)) (* x is active var in ctx *)
+            | right p => ed_val (vNeedy _ _ _ _ _ (needyVar x)) (* x is active var in ctx *)
             end
           | Lam x t1  =>
             match in_dec eq_var x xs with (* if x is in xs *)
@@ -1352,10 +1341,10 @@ Module Lam_cbn_Strategy <: REF_STRATEGY Lam_cbnd_PreRefSem.
             | left p => (* name clash; need to rename x with fresh var in let *)
               let f:=fresh_for xs in
               ed_dec (ckv C Hnd) ([x:=Var f] t2)
-                     (in_let _ f _ (fresh_for_is_fresh f xs _) t1)
-            | right p => ed_dec (ckv C Hnd) t2 (in_let _ x _ p t1)
+                     (k_let _ f _ (fresh_for_is_fresh f xs _) t1)
+            | right p => ed_dec (ckv C Hnd) t2 (k_let _ x _ p t1)
             end
-          | LetNd x t n => ed_dec _ t (let_var _ _ _ n) (* x is needed - decompose t *)
+          | LetNd x t n => ed_dec _ t (k_definiens _ _ _ n) (* x is needed - decompose t *)
           end
         end); eauto.
   Defined.
@@ -1387,14 +1376,14 @@ Module Lam_cbn_Strategy <: REF_STRATEGY Lam_cbnd_PreRefSem.
           fun v =>
             match v in val k' return k' = @ckv C _ _ -> elem_dec _ with
             | vELam _ _ _ _ _  => fun h1 => _ (* absurd case *)
-            | @vNeu C _ y _ _ _ _ c  => (* cʸ *)
+            | @vNeedy C _ y _ _ _ _ c  => (* cʸ *)
               fun h2 =>
                 match eq_var x y with
                 | left p => ed_dec  _ c (λc x, □)
-                | right p => ed_val (vNeu _ _ _ _ _ (inctxLam _ y _ _ c))
+                | right p => ed_val (vNeedy _ _ _ _ _ (needyLam _ y _ _ c))
                                     (* λ x. cʸ *)
                 end
-            | @vNeu E _ _ _ _ _ _ _  => fun h2 => _ (* absurd case *)
+            | @vNeedy E _ _ _ _ _ _ _  => fun h2 => _ (* absurd case *)
             | @vCLam _ _ _ _ l  => (* λ x, l *)
               fun h3 => ed_val (vCLam _ _ _ (lnfLam x _  (nf_lam_in_ctx _ l)))
             | @vStruct E _ _ _ _ _ => fun h4 => _ (* absurd case *)
@@ -1406,9 +1395,9 @@ Module Lam_cbn_Strategy <: REF_STRATEGY Lam_cbnd_PreRefSem.
             match v in val k' return k' = @ckv E _ _ -> elem_dec _ with
             | vELam _ _ x t0 s => (* redex (λ x, t0) [s] @ t *)
               fun h1 => ed_red (@rApp _ _ _ x t0 s t)
-            | @vNeu E _ _ _ _ _ _ c    => (* c @ t *)
-              fun h2 => ed_val (vNeu _ _ _ _ _ (inctxApp_l _ _ _ c t))
-            | @vNeu C _ _ _ _ _ _ _    => _ (* absurd case *)
+            | @vNeedy E _ _ _ _ _ _ c    => (* c @ t *)
+              fun h2 => ed_val (vNeedy _ _ _ _ _ (needyApp_l _ _ _ c t))
+            | @vNeedy C _ _ _ _ _ _ _    => _ (* absurd case *)
             | vCLam _ _ _ _  => fun _ =>  _ (* absurd case *)
             | @vStruct E _ _ _ _ s =>
               fun h4 => ed_dec _ t (s □)
@@ -1417,9 +1406,9 @@ Module Lam_cbn_Strategy <: REF_STRATEGY Lam_cbnd_PreRefSem.
         | s □  =>
           fun v => match v in val k' return k' = @ckv C _  _ -> elem_dec _ with
                   | vELam _ _ _  _ _ => fun h6 => _  (* absurd case *)
-                  | @vNeu E _ _ _ _ _ _ _  => _ (* absurd case *)
-                  | @vNeu C _ _ _ _ _  _ c    => (* s @ c *)
-                    fun h7 => ed_val (vNeu _ _ _ _ _ (inctxApp_r _ _ _ _ s c))
+                  | @vNeedy E _ _ _ _ _ _ _  => _ (* absurd case *)
+                  | @vNeedy C _ _ _ _ _  _ c    => (* s @ c *)
+                    fun h7 => ed_val (vNeedy _ _ _ _ _ (needyApp_r _ _ _ _ s c))
                   | vCLam _ _ _ l => (* s @ l *)
                     fun h8 => ed_val (vStruct _ _ _ (sApp _ _ s (nf_lam_in_ctx _ l)))
                   | @vStruct C _ _ _ _ s1 => (* s @ s1 *)
@@ -1431,11 +1420,11 @@ Module Lam_cbn_Strategy <: REF_STRATEGY Lam_cbnd_PreRefSem.
             match v in val k return k= @ckv E _ _ -> elem_dec _ with
             | vELam _ _ y r s => (* (Lam y. r) [x=t, s] *)
               fun h11 => ed_val (vELam _ _ y r (subCons x t s))
-            | vNeu y _ _ _ _ c    =>
+            | vNeedy y _ _ _ _ c    =>
               fun h12 =>
                 match eq_var x y with
                 | left _ => ed_red (rSubNd y _ _ _ _ _ ) (* redex let x = t in cˣ *)
-                | right _ => ed_val (vNeu _ _ _ _ _ (inctxSub _ _ _ _ _ _ t))
+                | right _ => ed_val (vNeedy _ _ _ _ _ (needySub _ _ _ _ _ _ t))
                                     (* let x = t in cʸ *)
                 end
             | vCLam _ _ _ _  => fun h13 => _ (* absurd case *)
@@ -1447,11 +1436,11 @@ Module Lam_cbn_Strategy <: REF_STRATEGY Lam_cbnd_PreRefSem.
           fun v =>
             match v in val k return k= @ckv C _  _ -> elem_dec _ with
             | vELam _ y v0 _ s => fun h16 => _ (* absurd case *)
-            | vNeu y _ _ _ _ c    =>
+            | vNeedy y _ _ _ _ c    =>
               fun h17 =>
                 match eq_var x y with
                 | left _ => ed_red (rSubNd y _ _ _ _ t) (* redex let x = t in cˣ *)
-                | right _ => ed_val (vNeu _ _ _ _ _ (inctxSub x _ _ _ _ _ t))
+                | right _ => ed_val (vNeedy _ _ _ _ _ (needySub x _ _ _ _ _ t))
                                     (* let x = t in cʸ *)
                 end
             | vCLam _ _ _ ln  => (* let x = t in ln *)
@@ -1465,9 +1454,9 @@ Module Lam_cbn_Strategy <: REF_STRATEGY Lam_cbnd_PreRefSem.
             match v in val k' return k' = @ckv E _ _ -> elem_dec (@ckv k _ _) with
             | vELam _ _ y r s => (* redex let x := (λ y, r)[s] in t *)
               fun h21 => ed_red (rSub x _ t y r s)
-            | @vNeu E _ y _ _ _ _ c    => (* let x := cʸ in t *)
-              fun h22 => ed_val (vNeu y _  _  _ _ (@inctxNdSub2 _ y _ x c t))
-            | @vNeu C _ _ _ _ _ _ _    => _ (* absurd case *)
+            | @vNeedy E _ y _ _ _ _ c    => (* let x := cʸ in t *)
+              fun h22 => ed_val (vNeedy y _  _  _ _ (@needyNdSub2 _ y _ x c t))
+            | @vNeedy C _ _ _ _ _ _ _    => _ (* absurd case *)
             | vCLam _ _ _ _ => fun h23 => _ (* absurd case *)
             | @vStruct E _ _ _ _ s =>
               fun h24 => _
@@ -1479,9 +1468,9 @@ Module Lam_cbn_Strategy <: REF_STRATEGY Lam_cbnd_PreRefSem.
           fun v =>
             match v in val k' return k' = @ckv C (x::_) _ -> elem_dec _ with
             | vELam _ y v0 _ s =>  fun h26 => _ (* absurd case *)
-            | vNeu y _ _ _ _ c    => (* let x := s1 in cʸ *)
+            | vNeedy y _ _ _ _ c    => (* let x := s1 in cʸ *)
               fun h27 => ed_val _
-                (*ed_val (vNeu y  _ _ _ _ (inctxNdSub _ _ _ _ _ _ s1 _))*)
+                (*ed_val (vNeedy y  _ _ _ _ (needyNdSub _ _ _ _ _ _ s1 _))*)
             | vCLam l _ _ nl =>
               fun h28 => _ (* let x := s1 in nl if x ∈ frozen vars of nl *)
                            (* stuck redex otherwise *)
@@ -1495,7 +1484,7 @@ Module Lam_cbn_Strategy <: REF_STRATEGY Lam_cbnd_PreRefSem.
             match v in val k' return k' = @ckv E (x::_) _ -> elem_dec _ with
             | vELam _ _ y r s => (* redex let x:= s1 in (Lam y. r)[s] *)
               fun h261 => ed_red (rSubNdE x _ _ _ s1 y r s)
-            | @vNeu _ l y ys _ _ _ c    =>
+            | @vNeedy _ l y ys _ _ _ c    =>
               fun h271 => ed_val _ (* let x := s1 in cʸ *)
             | vCLam _ _ _ nl => _ (* absurd case *)
             | @vStruct E _ l _ _ s =>
@@ -1544,9 +1533,9 @@ Module Lam_cbn_Strategy <: REF_STRATEGY Lam_cbnd_PreRefSem.
      case_eq (@In_split var eq_var x xs); intros; eauto.
      destruct s2 as [x0 [ x1 [a1 a2]]]; subst.
      remember (fresh_for (x0++x::x1)) as f.
-     exact (ed_dec _ ([x:=#f]t) (let_var2 f _ _ _ (fresh_for_is_fresh f (x0++x::x1) (eq_sym Heqf)) s0 s)).
+     exact (ed_dec _ ([x:=#f]t) (k_letnd f _ _ _ (fresh_for_is_fresh f (x0++x::x1) (eq_sym Heqf)) s0 s)).
      assert (Subset s1 xs) by eauto.
-     exact (ed_dec _ t (let_var2 x _ _ _ n1 H0 s)).
+     exact (ed_dec _ t (k_letnd x _ _ _ n1 H0 s)).
     +
       (* h291 *)
       assert (NoDup s2) by eauto.
@@ -1593,14 +1582,14 @@ Module Lam_cbn_Strategy <: REF_STRATEGY Lam_cbnd_PreRefSem.
       assert (~ In y l0).
       intro; elim n2; right; eauto.
       assert (~ In y s) by eauto.
-      remember (inctxNdSub x y _ _ H H1 s1 c) as val.
+      remember (needyNdSub x y _ _ H H1 s1 c) as val.
       assert (Subset (set_union eq_var s (set_remove eq_var x l)) l0).
       unfold Subset in *; intros; eauto.
       elim (set_union_elim _ _ _ _ H2); intros; eauto.
       assert (hh:=set_remove_1 eq_var _ _ _ H3).
       elim (s2 _ hh); intros; subst; eauto.
       eelim (set_remove_2 _ _ H3); eauto.
-      exact (vNeu y _ _ H0 H2 val).
+      exact (vNeedy y _ _ H0 H2 val).
     + (* h28 *)
       destruct (@In_split var eq_var x s2); eauto.
       assert (NoDup s2) by eauto.
@@ -1668,14 +1657,14 @@ Module Lam_cbn_Strategy <: REF_STRATEGY Lam_cbnd_PreRefSem.
       assert (~ In y l).
       intro; elim n2; right; eauto.
       assert (~ In y s) by eauto.
-      remember (inctxNdSub x y _ _ H H1 s1 c) as val.
+      remember (needyNdSub x y _ _ H H1 s1 c) as val.
       assert (Subset (set_union eq_var s (set_remove eq_var x s2)) l).
       unfold Subset in *; intros; eauto.
       elim (set_union_elim _ _ _ _ H2); intros; eauto.
       assert (hh:=set_remove_1 eq_var _ _ _ H3).
       elim (s3 _ hh); intros; subst; eauto.
       eelim (set_remove_2 _ _ H3); eauto.
-      exact (vNeu y _ _ H0 H2 val).
+      exact (vNeedy y _ _ H0 H2 val).
       Unshelve.
       eauto.
       eauto.
@@ -1750,9 +1739,9 @@ Module Lam_cbn_Strategy <: REF_STRATEGY Lam_cbnd_PreRefSem.
     let (_, ec0) := ec0 in
     match ec, ec0 with
     | k_ap_l_E _ _ _ _ _, k_ap_r _ _ => immediate_ec ec t /\ immediate_ec ec0 t
-    | let_var2 _ _ _ _ _ _ _ , let_var _ _ _ _=> immediate_ec ec t /\ immediate_ec ec0 t
-(*    | let_var2 _ _ _ _ _ _ _ , in_let _ _ _ _ _=> immediate_ec ec t /\ immediate_ec ec0 t
-    | let_var _ _ _ _ , in_let _ _ _ _ _ => immediate_ec ec t /\ immediate_ec ec0 t *)
+    | k_letnd _ _ _ _ _ _ _ , k_definiens _ _ _ _=> immediate_ec ec t /\ immediate_ec ec0 t
+(*    | k_letnd _ _ _ _ _ _ _ , k_let _ _ _ _ _=> immediate_ec ec t /\ immediate_ec ec0 t
+    | k_definiens _ _ _ _ , k_let _ _ _ _ _ => immediate_ec ec t /\ immediate_ec ec0 t *)
     | _, _           => False
     end.
 
@@ -2228,18 +2217,18 @@ Extraction "strong_cbn" list_configs .
 
 Unset Extraction SafeImplicits.
 Extraction Implicit k_ap_l_E [xs ys].
-Extraction Implicit in_let [xs].
-Extraction Implicit let_var2 [xs ys].
+Extraction Implicit k_let [xs].
+Extraction Implicit k_letnd [xs ys].
 Extraction Implicit vCLam [xs ys].
 Extraction Implicit vStruct [xs ys].
-Extraction Implicit vNeu [xs ys].
+Extraction Implicit vNeedy [xs ys].
 Extraction Implicit vELam [xs].
-Extraction Implicit inctxApp_l [xs].
-Extraction Implicit inctxApp_r [xs ys].
-Extraction Implicit inctxLam [xs].
-Extraction Implicit inctxSub [xs].
-Extraction Implicit inctxNdSub [xs zs].
-Extraction Implicit inctxNdSub2 [xs].
+Extraction Implicit needyApp_l [xs].
+Extraction Implicit needyApp_r [xs ys].
+Extraction Implicit needyLam [xs].
+Extraction Implicit needySub [xs].
+Extraction Implicit needyNdSub [xs zs].
+Extraction Implicit needyNdSub2 [xs].
 Extraction Implicit sApp [xs ys].
 Extraction Implicit sSub [ys].
 Extraction Implicit sNdSub [ys zs xs].
@@ -2249,7 +2238,7 @@ Extraction Implicit lnfNdSub [ys zs xs].
 Extraction Implicit nf_struct [xs].
 Extraction Implicit nf_lam_in_ctx [xs].
 Extraction Implicit struct_to_normal [xs].
-Extraction Implicit nf_to_term [xs].
+Extraction Implicit needy_to_term [xs].
 Extraction Implicit rApp [xs].
 Extraction Implicit rSub [xs].
 Extraction Implicit rSubNd [xs ys].

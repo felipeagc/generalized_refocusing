@@ -72,6 +72,7 @@ Module RED_MINI_LANG_Notions (Import R : RED_MINI_LANG).
 
   (* Subterm order is the transitive closure of the immediate_subterm relation. *)
   Definition subterm_order          := clos_trans_1n term immediate_subterm.
+  Notation "t1 <| t2"  := (subterm_order t1 t2)      (no associativity, at level 70).
 
   (* Decomposition of a term is a pair consisting of a reduction context and *)
   (* a potential redex. Values have no decomposition; we just report that *)
