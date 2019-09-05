@@ -21,6 +21,7 @@ examples/addition.v
 examples/cbn_lam.v
 examples/cbn_strict.v
 examples/cbv_lam.v
+examples/dfa.v
 examples/lam_cl_es_no.v
 examples/lam_cl_es_no_test.v
 examples/lam_kes_cbn.v
