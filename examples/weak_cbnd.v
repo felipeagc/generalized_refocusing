@@ -4,6 +4,7 @@
 Require Import Program.
 Require Import Util.
 Require Import refocusing_semantics.
+Require Import empty_search_order.
 
 (* Here we define the reduction semantics. *)
 (* The module type PRE_RED_SEM is defined in the file *)
@@ -485,168 +486,29 @@ Module Lam_cbn_Strategy <: REF_STRATEGY Lam_cbnd_PreRefSem.
   Qed.
 
 
-  (* Here we define an order on elementary contexts. *)
-  (* This is necessary to make the generated machine deterministic. *)
+  (* Here we define an order on elementary contexts but it is trivial in this case. *)
+  Include Empty_search_order Lam_cbnd_PreRefSem.
 
-  Inductive elem_context_in k : Type :=
-  | ec_in : forall k' : ckind, elem_context_kinded k k' -> elem_context_in k.
-  Arguments ec_in {k} _ _.
-  Coercion ec_kinded_to_in {k1 k2} (ec : elem_context_kinded k1 k2) := ec_in k2 ec.
-
-
-  (* In the case of weak call-by-need the order is trivial. *)
-  (* We have three productions in the grammar; none of them are overlapping. *)
-  (* So there is  nothing to compare. *)
-  Definition search_order (k : ckind) (t : term) (ec ec0 : elem_context_in k) : Prop := False.
-
-  (* But we still have to go through all of the following. *)
-  Notation "t |~  ec1 << ec2 "     := (search_order _ t ec1 ec2)
-                                   (at level 70, ec1, ec2 at level 50, no associativity).
-
-  Notation "k , t |~  ec1 << ec2 " := (search_order k t ec1 ec2)
-                                     (no associativity, at level 70, ec1, t at level 69).
-
-  (* The search order is well-founded. *)
-  Lemma wf_search : forall k t, well_founded (search_order k t).
-  Proof.
-    intros ? ? ?.
-    constructor.
-    intros ? H.
-    inversion H.
-  Qed.
-
-
-  (* The search order is transitive. *)
-  Lemma search_order_trans :                                      forall k t ec0 ec1 ec2,
-      k,t |~ ec0 << ec1 -> k,t |~ ec1 << ec2 ->
-      k,t |~ ec0 << ec2.
-
-  Proof.
-    intros k t ec0 ec1 ec2 H H0.
-    destruct k, ec0, ec1;
-    solve [ autof ].
-  Qed.
-
-
-  (* All immediate prefixes are comparable in this order, that is: *)
-  (* If we have two productions in the grammar of the form  k-> ec0[k'] and *)
-  (* k-> ec1[k''] and the two elementary contexts are prefixes of the same term, *)
-  (* then they are comparable. *)
+  (* If two elementary contexts are prefixes of the same term, *)
+  (* then they are equal. *)
   Lemma search_order_comp_if :         forall t k k' k'' (ec0 : elem_context_kinded k k')
                                                        (ec1 : elem_context_kinded k k''),
       immediate_ec ec0 t -> immediate_ec ec1 t ->
           k, t |~ ec0 << ec1  \/  k, t |~ ec1 << ec0  \/  (k' = k'' /\ ec0 ~= ec1).
 
   Proof.
-    intros t k k' k'' ec0 ec1 H0 H1.
-
-    destruct H0 as (t0, H4); destruct H1 as (t1, H5).
+    intros t k k' k'' ec0  ec1 [? ?] [? ?].
+    do 2 right.
     subst t.
     destruct ec0; dependent destruction ec1;
     try discriminate;
-    subst.
-    inversion H5; subst.
-
-    solve
-    [ compute; eautof 7
-    | do 2 right;
-      split;
-    [ auto
-    | match goal with H : (value_to_term _) = (value_to_term _) |- _ =>
-      apply value_to_term_injective in H;
-      subst;
-      auto
-      end
-    ] ].
-
-  compute; do 2 right; split; auto.
-  simpl in *.
-  injection H5; intros; subst.
-  reflexivity.
-
-  compute; do 2 right; split; auto.
-  simpl in *.
-  injection H5; intros; subst.
-  symmetry.
-  dependent destruction H.
-  reflexivity.
+    injection H0; intros; subst; auto.
+    dependent destruction H.
+    auto.
   Qed.
 
 
-  (* Only immediate prefixes are comparable in this order. *)
-  Lemma search_order_comp_fi :
-      forall t k k' k'' (ec0 : elem_context_kinded k k')
-                        (ec1 : elem_context_kinded k k''),
-          k, t |~ ec0 << ec1 ->
-              immediate_ec ec0 t /\ immediate_ec ec1 t.
-
-
-  Proof with auto.
-    intros t k k'' k''' ec0 ec1 H.
-    inversion H.
-  Qed.
-
-
-  (* Order-related definitions *)
-
-  Definition so_maximal {k} (ec : elem_context_in k) t :=
-       forall (ec' : elem_context_in k), ~ t |~ ec << ec'.
-  Definition so_minimal {k} (ec : elem_context_in k) t :=
-       forall (ec' : elem_context_in k), ~ t |~ ec' << ec.
-  Definition so_predecessor                                                           {k}
-      (ec0 : elem_context_in k) (ec1 : elem_context_in k) t :=
-
-      (*1*) t |~ ec0 << ec1 /\
-      (*2*)                                              forall (ec : elem_context_in k),
-            t |~ ec << ec1  ->  ~ t |~ ec0 << ec.
-  Hint Unfold so_maximal so_minimal so_predecessor.
-
-
-  (* The down-arrow function always chooses the maximal element. *)
-
-  Lemma dec_term_term_top : forall {k k'} t t' (ec : elem_context_kinded k k'),
-          dec_term t k = ed_dec _ t' ec -> so_maximal ec t.
-  Proof.
-    intros t k t' ec H ec' H0.
-    destruct k, t, ec'; inversion H;  subst; inversion H0; intro HHH; inversion HHH.
-  Qed.
-
-  (* If the up-arrow function returns a redex, we have finished traversing the term. *)
-  (* There are no further redices, i.e., we have just returned from *)
-  (* the minimal element. *)
-  Lemma dec_context_red_bot :  forall {k k'} (v : value k') {r : redex k}
-                                                         (ec : elem_context_kinded k k'),
-          dec_context ec v = ed_red r -> so_minimal ec ec:[v].
-  Proof.
-    intros k ec v r H ec'.
-    destruct k, ec, ec'; dependent destruction v;
-    solve
-    [ autof
-    | inversion H;
-      intro G;
-      unfold search_order in G; destruct G as (G, _);
-      destruct G as (t1, G); inversion G; subst;
-      destruct v0;
-      autof ].
-  Qed.
-
-
-  (* The same for the case of a value: *)
-  (* If the up-arrow function returns a value, we have finished traversing the term. *)
-  (* There are no further redices, i.e., we have just returned from *)
-  (* the minimal element. *)
-  Lemma dec_context_val_bot : forall {k k'} (v : value k') {v' : value k}
-      (ec : elem_context_kinded k k'),
-      dec_context ec v = ed_val v' -> so_minimal ec ec:[v].
-  Proof.
-    intros k ec v v' H ec'.
-    destruct k, ec, ec'; dependent destruction v;
-    solve [ autof ].
-  Qed.
-
-
-  (* If the up-arrow function returns that we should continue searching, *)
-  (* it chooses the next (according to the order) element, that is, the predecessor. *)
+  (* Up-arrow function never returns that we should continue searching. *)
   Lemma dec_context_term_next :                        forall {k0 k1 k2} (v : value k1) t
                                                        (ec0 : elem_context_kinded k0 k1)
                                                        (ec1 : elem_context_kinded k0 k2),
@@ -654,26 +516,9 @@ Module Lam_cbn_Strategy <: REF_STRATEGY Lam_cbnd_PreRefSem.
 
   Proof.
     intros ? ? ? v t ec0 ec1 H.
-    destruct ec0; dependent destruction ec1;  dependent destruction v;
+    destruct ec0; dependent destruction ec1; dependent destruction v;
     try discriminate;
-    solve [simpl in *;
-    case_eq (eq_var x v0); intros; subst; rewrite H0 in H; discriminate].
-  Qed.
-
-
-  (* If there are two overlapping elementary contexts in the same term, then *)
-  (* the greater of them contains no redices (it contains only values). *)
-  Lemma elem_context_det :          forall {k0 k1 k2} t (ec0 : elem_context_kinded k0 k1)
-                                                       (ec1 : elem_context_kinded k0 k2),
-
-      t |~ ec0 << ec1 -> exists (v : value k2), t = ec1:[v].
-
-  Proof.
-    intros ? ? ? t ec0 ec1 H0.
-    destruct ec0; dependent destruction ec1;
-    try discriminate;
-    subst;
-    autof.
+    simpl in H; destruct (eq_var x v0); discriminate.
   Qed.
 
 End Lam_cbn_Strategy.
