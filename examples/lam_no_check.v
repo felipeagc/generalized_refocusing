@@ -96,11 +96,11 @@ Module Lam_NO_HandDecProc.
     induction H using RS.refocus_in_Ind with
     (P0 := fun _ v c d _ => decctx_proc v c d);
     try match goal with
-    | H : RS.ST.dec_term ?t ?k = _     |- _ => destruct t, k2; 
-                                               dependent destruction H; subst
-    | H : RS.ST.dec_context ?ec ?v = _ |- _ => destruct ec; 
-                                               dependent_destruction2 v; 
-                                               dependent destruction H; subst
+    | H : RS.dec_term ?t ?k = _     |- _ => destruct t, k2;
+                                            dependent destruction H; subst
+    | H : RS.dec_context ?ec ?v = _ |- _ => destruct ec;
+                                            dependent_destruction2 v;
+                                            dependent destruction H; subst
     end; eauto.
  }
  Qed.
@@ -132,11 +132,11 @@ Module Lam_NO_HandDecProc.
     induction H using RS.refocus_out_Ind with
     (P := fun _ t c d _ => dec_proc t c d);
     try match goal with
-    | H : RS.ST.dec_term ?t ?k = _     |- _ => destruct t, k2; 
-                                                  dependent destruction H; subst
-    | H : RS.ST.dec_context ?ec ?v = _ |- _ => destruct ec; 
-                                               dependent_destruction2 v; 
-                                               dependent destruction H; subst
+    | H : RS.dec_term ?t ?k = _     |- _ => destruct t, k2;
+                                            dependent destruction H; subst
+    | H : RS.dec_context ?ec ?v = _ |- _ => destruct ec;
+                                            dependent_destruction2 v;
+                                            dependent destruction H; subst
     end; 
     solve [eauto].
   }

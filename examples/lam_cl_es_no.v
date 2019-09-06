@@ -6,7 +6,7 @@ Require Export Peano_dec Compare_dec.
 Open Scope list.
 
 
-Module Lam_ClES_NO_PreRefSem <: PRE_REF_SEM.
+Module Lam_ClES_NO_PreRefSem <: PRE_RED_SEM.
 
 
   Inductive term0 :=

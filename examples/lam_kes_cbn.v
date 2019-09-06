@@ -93,7 +93,7 @@ Qed.
 
 
 
-Module Lam_KES_CBN_PreRefSem <: PRE_REF_SEM.
+Module Lam_KES_CBN_PreRefSem <: PRE_RED_SEM.
 
 
   Inductive term0 : Set :=

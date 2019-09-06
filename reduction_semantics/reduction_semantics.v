@@ -136,7 +136,7 @@ End RED_SEM_BASE_Notions.
 
 (* A signature that formalizes a reduction semantics *)
 
-Module Type RED_SEM.
+Module Type PRE_RED_SEM.
 
   Include RED_SEM_BASE.
   Include RED_SEM_BASE_Notions.
@@ -165,23 +165,27 @@ Module Type RED_SEM.
   (value_redex :                                                              forall {k},
        forall (v : value k) (r : redex k), value_to_term v <> redex_to_term r)
 
+  (redex_trivial1 :        forall {k k'} (r : redex k) (ec : elem_context_kinded k k') t,
+       ec:[t] = r -> exists (v : value k'), t = v)
+
+  (wf_immediate_subterm : well_founded immediate_subterm)
+
+  (wf_subterm_order     : well_founded subterm_order).
+
+End PRE_RED_SEM.
+
+Module Type RED_SEM.
+  Include PRE_RED_SEM.
 
   (* Each term (t) can be decomposed wrt. to each substrategy (k) *)
-  (decompose_total :                                                          forall k t,
-       exists d : decomp k, dec t k d).
-
+  Axiom decompose_total : forall k t, exists d : decomp k, dec t k d.
 End RED_SEM.
-
-
 
 
 (* A signature that formalizes a deterministic reduction semantics *)
 
-Module Type RED_SEM_DET (R : RED_SEM).
-
-  Import R.
+Module Type RED_SEM_DET (Import R : RED_SEM).
 
   Axiom dec_is_det :                                      forall {k} t (d d0 : decomp k),
       dec t k d -> dec t k d0 -> d = d0.
-
 End RED_SEM_DET.

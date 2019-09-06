@@ -22,7 +22,7 @@ Require Import Program
 
 
 
-Module Lam_NO_PreRefSem <: PRE_REF_SEM.
+Module Lam_NO_PreRefSem <: PRE_RED_SEM.
 
   Parameter var : Set.
 

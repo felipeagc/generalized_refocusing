@@ -6,12 +6,11 @@ Require Import Util.
 Require Import refocusing_semantics.
 
 (* Here we define the reduction semantics. *)
-(* The module type PRE_REF_SEM is defined in the file *)
-(*     refocusing/refocusing_semantics.v *)
-(* It inherits part of the signature from RED_SEM defined in *)
+(* The module type PRE_RED_SEM is defined in the file *)
 (*     reduction_semantics/reduction_semantics.v *)
+(* It is a RED_SEM without totality of decompose *)
 
-Module Lam_cbnd_PreRefSem <: PRE_REF_SEM.
+Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
 
   (* We define variables as numbered identifiers. *)
   Inductive id :=

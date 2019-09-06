@@ -33,7 +33,7 @@ Module DFA_Notions (Import D : DFA).
 End DFA_Notions.
 
 
-Module DFA_PreRefSem (Import D : DFA) <: PRE_REF_SEM.
+Module DFA_PreRefSem (Import D : DFA) <: PRE_RED_SEM.
   Include DFA_Notions D.
 
   Definition term := list alphabet.

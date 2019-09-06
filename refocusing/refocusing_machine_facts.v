@@ -13,10 +13,10 @@ Require Import Program
 
 Local Open Scope vector.
 
-Module RefEvalApplyMachine_Facts (Import R'  : RED_REF_SEM)
-                                 (Import EAM : REF_EVAL_APPLY_MACHINE R').
+Module RefEvalApplyMachine_Facts (Import R  : RED_REF_SEM)
+                                 (Import EAM : REF_EVAL_APPLY_MACHINE R).
 
-  Include RED_LANG_Facts R'.
+  Include RED_LANG_Facts R.
 
 
   Notation eam := EAM.rws.
