@@ -10,24 +10,24 @@ was tested under Coq version 8.8.1
 The repository contains several examples in the [examples](examples/)
 directory.
 
-* The simplest (about 300--400 lines of definitions and proofs) are
+* The simplest (about 300 lines of definitions and proofs) are
   [call by name](examples/cbn_lam.v) and [call by
   value](examples/cbv_lam.v) strategies. Both these strategies are
   uniform; the examples are meant to illustrate the refocusing idea.
 
-* A relatively simple (about 540 lines) but instructive example is
-  [lambda calculus with strictness operator](examples/cbn_strict.v),
-  see Fig. 7 and 8 in the paper. It contains a simple hybrid strategy
-  and illustrates the idea of generalized refocusing.
+* A relatively simple but instructive example is [lambda calculus with
+  strictness operator](examples/cbn_strict.v), see Fig. 7 and 8 in the
+  first paper. It contains a simple hybrid strategy and illustrates the idea
+  of generalized refocusing.
 
 * A machine with an environment for full ᵦ-normalization derived from
   a language with explicit substitutions is [here](lam_cl_es_no.v)
 
 * [Weak call-by-need](examples/weak_cbnd.v)
 
-* [Strong call by need](examples/strong_cbnd.v), with about 2300 lines
-  of definitions and proofs, is definitely the most complicated of our
-  examples.
+* [Strong call by need](examples/strong_cbnd.v) is the most
+  complicated of our examples. It is the development supporting the
+  second paper.
 
 In three cases: [MiniML](examples/miniml.v), lambda calculus with the
 [normal-order](examples/lam_no.v) strategy, and lambda calculus with
