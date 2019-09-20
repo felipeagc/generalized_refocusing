@@ -1,9 +1,11 @@
 # Generalized Refocusing
 
-This is the Coq formalization that accompanies the paper [Generalized
+This is the Coq formalization that accompanies the papers [Generalized
 Refocusing: from Hybrid Strategies to Abstract
-Machines](http://drops.dagstuhl.de/opus/volltexte/2017/7718/). The
-code was tested under Coq version 8.7.2
+Machines](http://drops.dagstuhl.de/opus/volltexte/2017/7718/) and
+[Deriving an Abstract Machine for Strong Call by
+Need](http://drops.dagstuhl.de/opus/volltexte/2019/10515). The code
+was tested under Coq version 8.8.1
 
 The repository contains several examples in the [examples](examples/)
 directory.
