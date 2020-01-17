@@ -17,10 +17,12 @@ refocusing/refocusing_semantics.v
 refocusing/refocusing_semantics_facts.v
 refocusing/refocusing_machine.v
 refocusing/refocusing_machine_facts.v
+refocusing/empty_search_order.v
 examples/addition.v
 examples/cbn_lam.v
 examples/cbn_strict.v
 examples/cbv_lam.v
+examples/dfa.v
 examples/lam_cl_es_no.v
 examples/lam_cl_es_no_test.v
 examples/lam_kes_cbn.v

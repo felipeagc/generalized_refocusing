@@ -7,7 +7,8 @@ Require Import Arith
                List
                Program
                Util
-               refocusing_semantics.
+               refocusing_semantics
+               empty_search_order.
 
 
 (*** Local library ***)
@@ -93,7 +94,7 @@ Qed.
 
 
 
-Module Lam_KES_CBN_PreRefSem <: PRE_REF_SEM.
+Module Lam_KES_CBN_PreRefSem <: PRE_RED_SEM.
 
 
   Inductive term0 : Set :=
@@ -507,57 +508,7 @@ Module Lam_KES_CBN_Strategy <: REF_STRATEGY Lam_KES_CBN_PreRefSem.
       repeat (f_equal; eauto using pcons2_and_pcons).
   Qed.
 
-
-  Inductive elem_context_in k : Type :=
-  | ec_in : forall k' : ckind, elem_context_kinded k k' -> elem_context_in k.
-  Arguments ec_in {k} _ _.
-  Coercion ec_kinded_to_in {k1 k2} (ec : elem_context_kinded k1 k2) := ec_in k2 ec.
-
-
-  Definition search_order
-      (k : ckind) (t : term) (ec ec0 : elem_context_in k) : Prop := False.
-
-  Notation "t |~  ec1 << ec2 "     := (search_order _ t ec1 ec2)
-                                   (at level 70, ec1, ec2 at level 50, no associativity).
-  Notation "k , t |~  ec1 << ec2 " := (search_order k t ec1 ec2)
-                                (at level 70, t, ec1, ec2 at level 50, no associativity).
-
-  Definition so_maximal {k} (ec : elem_context_in k) t :=
-       forall (ec' : elem_context_in k), ~ t |~ ec << ec'.
-  Definition so_minimal {k} (ec : elem_context_in k) t :=
-       forall (ec' : elem_context_in k), ~ t |~ ec' << ec.
-  Definition so_predecessor                                                           {k}
-      (ec0 : elem_context_in k) (ec1 : elem_context_in k) t :=
-
-      (*1*) t |~ ec0 << ec1 /\
-      (*2*)                                              forall (ec : elem_context_in k),
-            t |~ ec << ec1  ->  ~ t |~ ec0 << ec.
-  Hint Unfold so_maximal so_minimal so_predecessor.
-
-
-  Lemma dec_term_term_top :                                             forall k k' t t',
-
-       forall (ec : elem_context_kinded k k'),
-           dec_term t k = ed_dec _ t' ec -> so_maximal ec t.
-
-  Proof. auto. Qed.
-
-
-  Lemma dec_context_red_bot :                   forall k k' (v : value k') (r : redex k),
-
-      forall (ec : elem_context_kinded k k'),
-          dec_context ec v = ed_red r -> so_minimal ec ec:[v].
-
-  Proof. auto. Qed.
-
-
-  Lemma dec_context_val_bot :                               forall k k' v {v' : value k},
-
-      forall (ec : elem_context_kinded k k'),
-          dec_context ec v = ed_val v' -> so_minimal ec ec:[v].
-
-  Proof. auto. Qed.
-
+  Include Empty_search_order Lam_KES_CBN_PreRefSem.
 
   Lemma dec_context_term_next :                                      forall k0 k1 k2 v t,
 
@@ -570,25 +521,6 @@ Module Lam_KES_CBN_Strategy <: REF_STRATEGY Lam_KES_CBN_PreRefSem.
     inversion 1.
   Qed.
 
-
-  Lemma elem_context_det :            forall k0 k1 k2 t (ec0 : elem_context_kinded k0 k1)
-                                                       (ec1 : elem_context_kinded k0 k2),
-
-          t |~ ec0 << ec1 -> exists (v : value k2), t = ec1:[v].
-
-  Proof. inversion 1. Qed.
-
-
-  Lemma wf_search : forall k t, well_founded (search_order k t).
-  Proof. REF_LANG_Help.prove_ec_wf. Qed.
-
-
-  Lemma search_order_trans :                                      forall k t ec0 ec1 ec2,
-      k, t |~ ec0 << ec1  ->  k, t |~ ec1 << ec2  ->  k, t |~ ec0 << ec2.
-
-  Proof. auto. Qed.
-
-
   Lemma search_order_comp_if :                                          forall t k k' k''
                       (ec0 : elem_context_kinded k k') (ec1 : elem_context_kinded k k''),
 
@@ -596,22 +528,13 @@ Module Lam_KES_CBN_Strategy <: REF_STRATEGY Lam_KES_CBN_PreRefSem.
           k, t |~ ec0 << ec1 \/ k,t |~ ec1 << ec0 \/ ( k' = k'' /\ ec0 ~= ec1).
 
   Proof.
-    intros t [] [] [] ec0 ec1 H1 H2.
-    destruct H1 as [t' H1], H2 as [t'' H2].
+    intros t [] [] [] ec0 ec1 [t' H1] [t'' H2].
     destruct ec0, ec1, t; inversion H1; inversion H2; subst.
     match goal with G : Cl _ _ = Cl _ _ |- _ =>
         inversion G; subst
     end.
     auto.
   Qed.
-
-
-  Lemma search_order_comp_fi :                                          forall t k k' k''
-                      (ec0 : elem_context_kinded k k') (ec1 : elem_context_kinded k k''),
-
-       k, t |~ ec0 << ec1  ->  immediate_ec ec0 t /\ immediate_ec ec1 t.
-
-  Proof. inversion 1. Qed.
 
 End Lam_KES_CBN_Strategy.
 

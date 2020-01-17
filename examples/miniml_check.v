@@ -157,18 +157,18 @@ Module MiniML_HandDecProc.
     induction H using RS.refocus_in_Ind with
     (P0 := fun _ v c d _ => decctx_proc v c d);
     try match goal with
-    | H : RS.ST.dec_term ?t ?k = ?dc     |- _ => destruct t, k2;
-                                                 try match dc with
-                                                 | RS.ST.ed_dec _ _ ?ec => destruct ec
-                                                 end;
-                                                 inversion H; subst
+    | H : RS.dec_term ?t ?k = ?dc     |- _ => destruct t, k2;
+                                              try match dc with
+                                              | RS.ed_dec _ _ ?ec => destruct ec
+                                              end;
+                                              inversion H; subst
 
-    | H : RS.ST.dec_context ?ec ?v = ?dc |- _ => destruct ec, k2;
-                                                 try match dc with
-                                                 | RS.ST.ed_dec _ _ ?ec0 => destruct ec0
-                                                 end;
-                                                 dependent_destruction2 v; 
-                                                 inversion H; subst
+    | H : RS.dec_context ?ec ?v = ?dc |- _ => destruct ec, k2;
+                                              try match dc with
+                                              | RS.ed_dec _ _ ?ec0 => destruct ec0
+                                              end;
+                                              dependent_destruction2 v;
+                                              inversion H; subst
     end;
     destruct_all ckind; simpl; eauto.
   }
@@ -197,17 +197,17 @@ Module MiniML_HandDecProc.
     induction H using RS.refocus_out_Ind with
     (P := fun _ t c d _ => dec_proc t c d);
     try match goal with
-    | H : RS.ST.dec_term ?t ?k = ?dc     |- _ => destruct t, k2;
-                                                 try match dc with
-                                                 | RS.ST.ed_dec _ _ ?ec0 => destruct ec0
-                                                 end;
-                                                 inversion H; subst
-    | H : RS.ST.dec_context ?ec ?v = ?dc |- _ => destruct ec, k2;
-                                                 dependent_destruction2 v;
-                                                 try match dc with
-                                                 | RS.ST.ed_dec _ _ ?ec0 => destruct ec0
-                                                 end;
-                                                 inversion H; subst
+    | H : RS.dec_term ?t ?k = ?dc     |- _ => destruct t, k2;
+                                              try match dc with
+                                              | RS.ed_dec _ _ ?ec0 => destruct ec0
+                                              end;
+                                              inversion H; subst
+    | H : RS.dec_context ?ec ?v = ?dc |- _ => destruct ec, k2;
+                                              dependent_destruction2 v;
+                                              try match dc with
+                                              | RS.ed_dec _ _ ?ec0 => destruct ec0
+                                              end;
+                                              inversion H; subst
     end; 
     destruct_all ckind; simpl; eauto.
   }

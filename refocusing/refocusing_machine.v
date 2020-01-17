@@ -9,12 +9,12 @@ Require Export abstract_machine.
 Require rewriting_system.
 
 
-Module RefEvalApplyMachineTypes (Import R' : RED_REF_SEM).
+Module RefEvalApplyMachineTypes (Import R : RED_REF_SEM).
 
   Notation ick     := init_ckind.
   Definition term  := term.
   Definition value := value ick.
-  Coercion   value_to_term (v : value) := (R.value_to_term v) : term.
+  Coercion   value_to_term (v : value) := (value_to_term v) : term.
 
 
   Inductive conf :=

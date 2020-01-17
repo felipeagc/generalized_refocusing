@@ -4,7 +4,7 @@ Require Import Util
 
 
 
-Module MiniML_PreRefSem <: PRE_REF_SEM.
+Module MiniML_PreRefSem <: PRE_RED_SEM.
 
   Parameter var : Set.
 

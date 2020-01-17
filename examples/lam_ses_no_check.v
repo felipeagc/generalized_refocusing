@@ -172,17 +172,17 @@ Module Lam_SES_NO_HandDecProc.
     induction H using RS.refocus_in_Ind with
     (P0 := fun _ v c d _ => refocus_out v c d);
     try match goal with
-    | H : RS.ST.dec_term ?t ?k = _     |- _ => destruct t, k;
-                                                  dependent destruction H; subst;
-                                                  try eapply (@d_App _ t0 t2 Eᵏ' c d);
-                                                  try eapply (@d_App _ t0 t2 Fᵏ' c d)
-    | H : RS.ST.dec_context ?ec ?v = _ |- _ => dependent destruction ec;
-                                                  destruct_all EF_kind;
-                                                  dependent_destruction2 v;
-                                                  match goal with
-                                                  | H : RS.ST.dec_context ?ec ?v = _ |- _
-                                                    => dependent_destruction2 H; subst
-                                                  end
+    | H : RS.dec_term ?t ?k = _     |- _ => destruct t, k;
+                                            dependent destruction H; subst;
+                                            try eapply (@d_App _ t0 t2 Eᵏ' c d);
+                                            try eapply (@d_App _ t0 t2 Fᵏ' c d)
+    | H : RS.dec_context ?ec ?v = _ |- _ => dependent destruction ec;
+                                            destruct_all EF_kind;
+                                            dependent_destruction2 v;
+                                            match goal with
+                                            | H : RS.dec_context ?ec ?v = _ |- _
+                                              => dependent_destruction2 H; subst
+                                            end
     end;
     eauto.
   }
@@ -213,18 +213,18 @@ Module Lam_SES_NO_HandDecProc.
     (P := fun _ t c d _ => refocus_in t c d);
 
     try match goal with
-    | H : RS.ST.dec_term ?t ?k = _     |- _ => destruct t, k; 
-                                                  dependent_destruction2 H; subst;
-                                                  try eapply (@d_App _ t0 t2 Eᵏ' c d);
-                                                  try eapply (@d_App _ t0 t2 Fᵏ' c d)
-    | H : RS.ST.dec_context ?ec ?v = _ |- _ => dependent_destruction2 ec;
-                                                  destruct_all EF_kind;
-                                                  dependent_destruction2 v;
-                                                  dependent_destruction2 H; subst;
-                                                  try match goal with
-                                                  | H : RS.ST.dec_context ?ec ?v = _ |- _
-                                                    => dependent_destruction2 H; subst
-                                                  end
+    | H : RS.dec_term ?t ?k = _     |- _ => destruct t, k;
+                                            dependent_destruction2 H; subst;
+                                            try eapply (@d_App _ t0 t2 Eᵏ' c d);
+                                            try eapply (@d_App _ t0 t2 Fᵏ' c d)
+    | H : RS.dec_context ?ec ?v = _ |- _ => dependent_destruction2 ec;
+                                            destruct_all EF_kind;
+                                            dependent_destruction2 v;
+                                            dependent_destruction2 H; subst;
+                                            try match goal with
+                                            | H : RS.dec_context ?ec ?v = _ |- _
+                                              => dependent_destruction2 H; subst
+                                            end
     end;
     eauto.
   }

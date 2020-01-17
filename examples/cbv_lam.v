@@ -8,10 +8,10 @@ Require Import Program
 Open Scope string_scope.
 
 (* Here we define the reduction semantics. *)
-(* The module type PRE_REF_SEM is defined in  the file refocusing/refocusing_semantics.v *)
-(* It inherits part of the signature from RED_SEM defined in reduction_semantics/reduction_semantics.v *)
+(* The module type PRE_RED_SEM is defined in the file reduction_semantics/reduction_semantics.v *)
+(* It is a RED_SEM without totality of decompose *)
 
-Module Lam_cbv_PreRefSem <: PRE_REF_SEM.
+Module Lam_cbv_PreRefSem <: PRE_RED_SEM.
 
   (* The first parameter required by RED_SEM is the set of terms. *)
   (* To define it, we first have to define variables and prove *)

@@ -9,29 +9,9 @@ Require Import Program
 Require Export reduction_semantics
                reduction_strategy.
 
+Module Type REF_STRATEGY (Import R : PRE_RED_SEM) <: RED_STRATEGY R.
 
-
-
-
-Module Type PRE_REF_SEM <: RED_STRATEGY_LANG.
-
-  Include RED_STRATEGY_LANG.
-  Include RED_SEM_BASE_Notions.
-
-  Axioms
-  (redex_trivial1 :        forall {k k'} (r : redex k) (ec : elem_context_kinded k k') t,
-       ec:[t] = r -> exists (v : value k'), t = v)
-  (wf_immediate_subterm : well_founded immediate_subterm)
-  (wf_subterm_order     : well_founded subterm_order).
-
-End PRE_REF_SEM.
-
-
-Module Type REF_STRATEGY (PR : PRE_REF_SEM) <: RED_STRATEGY PR.
-
-  Import PR.
-
-  Include RED_STRATEGY PR.
+  Include RED_STRATEGY R.
 
   Axioms 
   (wf_search : forall k t, well_founded (search_order k t))
@@ -53,7 +33,9 @@ Module Type REF_STRATEGY (PR : PRE_REF_SEM) <: RED_STRATEGY PR.
 End REF_STRATEGY.
 
 
-Module REF_Relations (Import R : RED_SEM) (Import ST : RED_STRATEGY_STEP R).
+Module REF_Relations
+  (Import R : RED_SEM)
+  (Import RF : RED_STRATEGY_STEP_FUNCTIONS R).
 
   Inductive refocus_in {k1} : forall {k2}, term -> context k1 k2 -> decomp k1 -> Prop :=
 
@@ -96,15 +78,19 @@ Module REF_Relations (Import R : RED_SEM) (Import ST : RED_STRATEGY_STEP R).
 End REF_Relations.
 
 
-Module Type RED_REF_SEM <: RED_SEM.
+Module Type RED_REF_SEM.
 
-  Declare Module R  : RED_SEM.
+  Include RED_SEM.
+  Include RED_STRATEGY_STEP_FUNCTIONS.
+  Include RED_STRATEGY_STEP.
+  Include REF_Relations.
+  (*Declare Module R  : RED_SEM.
   Declare Module ST : RED_STRATEGY_STEP R.
 
   Include R.
   Export ST.
 
-  Include REF_Relations R ST.
+  Include REF_Relations R RF.*)
 
   Axioms
   (refocus_ed_val_eqv_refocus_out :                         forall {k1 k2} (v : value k2)
@@ -120,7 +106,6 @@ End RED_REF_SEM.
 Module Type RED_PE_REF_SEM <: RED_REF_SEM.
 
   Include RED_REF_SEM.
-  Import R.
 
   Axioms
   (dec_context_not_val :             forall {k k'} (ec : elem_context_kinded k k') v0 v1,
@@ -173,15 +158,11 @@ End REF_LANG_Help.
 (*** Implementation part ***)
 
 
-Module RedRefSem (PR : PRE_REF_SEM) (ST' : REF_STRATEGY PR) <: RED_REF_SEM.
+Module RedRefSem
+  (Import PR : PRE_RED_SEM)
+  (Import ST : REF_STRATEGY PR) <: RED_REF_SEM.
 
-  Module RLF := RED_LANG_Facts PR.
-  Import PR RLF.
-
-
-
-  Module ST := ST'.
-  Export ST.
+  Include RED_LANG_Facts PR.
 
   Module R <: RED_SEM.
 
@@ -241,6 +222,7 @@ Module RedRefSem (PR : PRE_REF_SEM) (ST' : REF_STRATEGY PR) <: RED_REF_SEM.
   End R.
 
   Include R.
+  Include ST.
   Include REF_Relations R ST.
 
   Lemma refocus_in_correct :                      forall {k1 k2} t (c : context k1 k2) d,

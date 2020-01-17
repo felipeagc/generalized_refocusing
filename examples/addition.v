@@ -5,7 +5,7 @@ Require Import Program
                RelationClasses
                refocusing_semantics.
 
-Module Addition_PreRefSem <: PRE_REF_SEM.
+Module Addition_PreRefSem <: PRE_RED_SEM.
 
   Inductive expr :=
   | Const : nat -> expr
