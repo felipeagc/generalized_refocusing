@@ -42,8 +42,8 @@ coqdeps_to_dot s =
 
 main :: IO ()
 main =
-  let dotFileName = "/tmp/coqdeps.d.dot" in do
-    coqdeps <- readFile ".coqdeps.d"
+  let dotFileName = "/tmp/Makefile.d.dot" in do
+    coqdeps <- readFile ".Makefile.d"
     writeFile dotFileName $ coqdeps_to_dot coqdeps
     _ <- readProcess "dot" [dotFileName, "-Tsvg", "-ocoqdeps.svg"] ""
     return ()

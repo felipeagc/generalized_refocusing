@@ -542,6 +542,9 @@ Module RefEvalApplyMachine_Facts                                (R : RED_REF_SEM
   Import R EAM.
 *)
 
+  (* refine attribute added as in
+     https://coq.inria.fr/refman/addendum/type-classes.html *)
+  #[refine]
   Instance tracing : RW_TRACING EAM.rws R.rws := 
   {
       semantics := EAM.decompile;
