@@ -33,5 +33,6 @@ examples/lam_ses_no_check.v
 examples/lam_ses_no_test.v
 examples/miniml.v
 examples/miniml_check.v
+examples/open_cbv_lam.v
 examples/weak_cbnd.v
 examples/strong_cbnd.v
