@@ -44,32 +44,47 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
   Definition ckind := ck.
   Hint Unfold  ckind.
 
-
   (* Here we define the language of interest: lambda-let calculus.  *)
   (* Needys parameterized by a variable x are evaluation contexts *)
   (* with x plugged in the hole. Thus they are neutral terms with *)
   (* the variable x being needed. *)
-  Inductive expr :=
-  | App : expr -> expr -> expr                  (* application *)
-  | Var : var -> expr                           (* variable *)
-  | Lam : var -> expr -> expr                   (* lambda abstraction *)
-  | Let : var -> expr -> expr -> expr           (* non-strict let *)
-  | LetS : forall x, expr -> needy x -> expr (* strict let x := e in E[x] *)
-  with
-    needy : var -> Type := (* needys parameterized by head variable *)
-  | nVar : forall x : var, needy x
-  | nApp : forall x : var, needy x -> expr -> needy x       (* (n_x t) *)
-  | nLet : forall y x, x <> y -> expr -> needy x -> needy x (* let y = e in n_x *)
-  | nLetS : forall y x, needy x -> needy y -> needy x.      (* let y := n_x in n_y *)
 
-Notation " t @ s " := (App t s) (at level 40).
-Notation " # x " := (Var x) (at level 7).
-Notation " t [ x / s ] " := (Let x s t) (at level 45).
-Notation " 'λ'  x , t " := (Lam x t) (at level 50).
+  Inductive term :=
+  | App : term -> term -> term                    (* application *)
+  | Var : var -> term                             (* variable *)
+  | Lam : var -> term -> term                     (* lambda abstraction *)
+  | ExpSubst : var -> term -> term -> term        (* explicit substitution t[x/u] *)
+  | ExpDist : var -> var -> term -> term -> term. (* explicit distributor t[x // λy.u]  *)
+
+  Notation " t @ s " := (App t s) (at level 40).
+  Notation " # x " := (Var x) (at level 7).
+  Notation " t [ x / u ] " := (ExpSubst x u t) (at level 45).
+  Notation " t [ x '//' 'λ' y , u ] " := (ExpDist x y u t) (at level 46).
+  Notation " 'λ'  x , t " := (Lam x t) (at level 50).
+
+  Inductive pure_term :=
+  | PApp : pure_term -> pure_term -> pure_term     (* application *)
+  | PVar : var -> pure_term                        (* variable *)
+  | PLam : var -> pure_term -> pure_term.          (* lambda abstraction *)
+
+  Inductive termCtx : ckind -> Type :=
+  | termCtxEmpty  : termCtx E                                     (* <> *)
+  | termCtxLam    : var -> termCtx E -> termCtx E                 (* λx.C *)
+  | termCtxApp    : termCtx E -> term -> termCtx E                (* Ct *)
+  | termCtxTApp   : term -> termCtx E -> termCtx E                (* tC *)
+  | termCtxSubst  : termCtx E -> var -> term -> termCtx E         (* C[x / t] *)
+  | termCtxDist   : termCtx E -> var -> var -> term -> termCtx E  (* C[x // λy.u] *)
+  | termCtxTSubst : term -> var -> termCtx E -> termCtx E         (* t[x / C] *)
+  | termCtxTDist  : term -> var -> var -> termCtx E -> termCtx E. (* t[x // λy.C] *)
+
+  Inductive listCtx : ckind -> Type :=
+  | listCtxEmpty : listCtx E                                     (* <> *)
+  | listCtxSubst : listCtx E -> var -> term -> listCtx E         (* L[x / u] *)
+  | listCtxDist  : listCtx E -> var -> var -> term -> listCtx E. (* L[x // λy.u] *)
 
 
-(* Answer contexts look like substitutions.  *)
-Inductive ansCtx : ckind -> Type :=
+  (* Answer contexts look like substitutions.  *)
+  Inductive ansCtx : ckind -> Type :=
   | ansCtxEmpty : ansCtx E
   | ansCtxLet : var -> expr -> ansCtx E -> ansCtx E.
 
