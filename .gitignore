@@ -10,3 +10,4 @@ CoqMakefile.conf
 .Makefile.d
 Makefile
 Makefile.conf
+_opam
