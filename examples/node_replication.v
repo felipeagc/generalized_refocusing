@@ -40,7 +40,7 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
 
   (* Weak call-by-need is a uniform strategy, so one context kind E is enough. *)
 
-  Inductive ck := E.
+  Inductive ck := L | LL | N.
   Definition ckind := ck.
   Hint Unfold  ckind.
 
@@ -50,11 +50,11 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
   (* the variable x being needed. *)
 
   Inductive term :=
-  | App : term -> term -> term                    (* application *)
-  | Var : var -> term                             (* variable *)
-  | Lam : var -> term -> term                     (* lambda abstraction *)
-  | ExpSubst : var -> term -> term -> term        (* explicit substitution t[x/u] *)
-  | ExpDist : var -> var -> term -> term -> term. (* explicit distributor t[x // λy.u]  *)
+  | Var      : var -> term                         (* variable *)
+  | Lam      : var -> term -> term                 (* lambda abstraction *)
+  | App      : term -> term -> term                (* application *)
+  | ExpSubst : var -> term -> term -> term         (* explicit substitution t[x/u] *)
+  | ExpDist  : var -> var -> term -> term -> term. (* explicit distributor t[x // λy.u]  *)
 
   Notation " t @ s " := (App t s) (at level 40).
   Notation " # x " := (Var x) (at level 7).
@@ -63,27 +63,64 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
   Notation " 'λ'  x , t " := (Lam x t) (at level 50).
 
   Inductive pure_term :=
-  | PApp : pure_term -> pure_term -> pure_term     (* application *)
   | PVar : var -> pure_term                        (* variable *)
-  | PLam : var -> pure_term -> pure_term.          (* lambda abstraction *)
+  | PLam : var -> pure_term -> pure_term           (* lambda abstraction *)
+  | PApp : pure_term -> pure_term -> pure_term.    (* application *)
 
-  Inductive termCtx : ckind -> Type :=
-  | termCtxEmpty  : termCtx E                                     (* <> *)
-  | termCtxLam    : var -> termCtx E -> termCtx E                 (* λx.C *)
-  | termCtxApp    : termCtx E -> term -> termCtx E                (* Ct *)
-  | termCtxTApp   : term -> termCtx E -> termCtx E                (* tC *)
-  | termCtxSubst  : termCtx E -> var -> term -> termCtx E         (* C[x / t] *)
-  | termCtxDist   : termCtx E -> var -> var -> term -> termCtx E  (* C[x // λy.u] *)
-  | termCtxTSubst : term -> var -> termCtx E -> termCtx E         (* t[x / C] *)
-  | termCtxTDist  : term -> var -> var -> termCtx E -> termCtx E. (* t[x // λy.C] *)
+  (* v *)
+  Inductive val :=
+  | VLam : var -> term  -> val.
 
-  Inductive listCtx : ckind -> Type :=
-  | listCtxEmpty : listCtx E                                     (* <> *)
-  | listCtxSubst : listCtx E -> var -> term -> listCtx E         (* L[x / u] *)
-  | listCtxDist  : listCtx E -> var -> var -> term -> listCtx E. (* L[x // λy.u] *)
+  (* C *)
+  (* Inductive termCtx : ckind -> Type := *)
+  (* | termCtxEmpty  : termCtx E                                     (* <> *) *)
+  (* | termCtxLam    : var -> termCtx E -> termCtx E                 (* λx.C *) *)
+  (* | termCtxApp    : termCtx E -> term -> termCtx E                (* Ct *) *)
+  (* | termCtxTApp   : term -> termCtx E -> termCtx E                (* tC *) *)
+  (* | termCtxSubst  : termCtx E -> var -> term -> termCtx E         (* C[x / t] *) *)
+  (* | termCtxDist   : termCtx E -> var -> var -> term -> termCtx E  (* C[x // λy.u] *) *)
+  (* | termCtxTSubst : term -> var -> termCtx E -> termCtx E         (* t[x / C] *) *)
+  (* | termCtxTDist  : term -> var -> var -> termCtx E -> termCtx E. (* t[x // λy.C] *) *)
 
+  (* TODO: implement is_in_dom(LL) *)
 
-  (* Answer contexts look like substitutions.  *)
+  (* TODO: implement free_occurrence_count(pure_term, x) *)
+
+  (* TODO: implement free_occurrence_count(LL, x) *)
+
+  (* L - Lists context *)
+  Inductive LCtx : ckind -> Type :=
+  | LCtxEmpty : LCtx L                                  (* <> *)
+  | LCtxSubst : LCtx L -> var -> term -> LCtx L         (* L[x / u] *)
+  | LCtxDist  : LCtx L -> var -> var -> term -> LCtx L. (* L[x // λy.u] *)
+
+  (* T - Linear Cut Values *)
+  Inductive TCtx : ckind -> Type :=
+  | TCtxLam : var -> LLCtx LL -> pure_term -> TCtx LL (* λx.LL<p> *)
+  with
+    (* LL - Commutative lists context *)
+    LLCtx : ckind -> Type :=
+    | LLCtxEmpty : LLCtx LL                                 (* <> *)
+    | LLCtxSubst : LLCtx LL -> var -> pure_term -> LLCtx LL (* LL[x / p] *)
+    | LLCtxDist  : LLCtx LL -> var -> TCtx LL -> LLCtx LL.  (* LL[x // T] *)
+
+  (* U - Restricted terms context *)
+  Inductive UCtx : ckind -> Type :=
+  | UCtxVar : var -> UCtx LL (* x *)
+  | UCtxVal : val -> UCtx LL (* v *)
+  | UCtxApp : UCtx LL -> UCtx LL -> UCtx LL (* UU *)
+  | UCtxSubst : UCtx LL -> var -> UCtx LL -> UCtx LL (* U[x / U] *)
+  | UCtxDist : UCtx LL -> var -> TCtx LL -> UCtx LL. (* U[x // T] *)
+
+  (* Answer context *)
+  Inductive NCtx : ckind -> Type :=
+  | NCtxEmpty : NCtx N (* <> *)
+  | NCtxApp : NCtx N -> term -> NCtx N (* Nt *)
+  | NCtxSubst : NCtx N -> var -> term -> NCtx N (* N[x / t] *)
+  | NCtxDist : NCtx N -> var -> term -> NCtx N (* N[x // t] *)
+  | NCtxPlugSubst : NCtx N -> var -> var -> NCtx N -> NCtx N. (* N<<x>>[x/N] *)
+
+  (* Answer contexts look like substitutions. *)
   Inductive ansCtx : ckind -> Type :=
   | ansCtxEmpty : ansCtx E
   | ansCtxLet : var -> expr -> ansCtx E -> ansCtx E.
