@@ -104,6 +104,51 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
     | LLCtxSubst : LLCtx LL -> var -> pure_term -> LLCtx LL (* LL[x / p] *)
     | LLCtxDist  : LLCtx LL -> var -> TCtx LL -> LLCtx LL.  (* LL[x // T] *)
 
+  (* y ∈ dom(LL) *)
+  Fixpoint is_in_dom_ll (ll : LLCtx LL) (v : var): Prop :=
+    match ll with
+    | LLCtxEmpty => False
+    | LLCtxSubst l v' _ => if eq_var v v' then True else is_in_dom_ll l v
+    | LLCtxDist l v' _ => if eq_var v v' then True else is_in_dom_ll l v
+    end.
+
+  (* v ∈ fv(p) *)
+  Fixpoint p_has_free_occurrence (p : pure_term) (v : var) : Prop :=
+    match p with
+    | PVar v' => if eq_var v v' then True else False
+    | PLam v' p' => (if eq_var v v' then False else p_has_free_occurrence p' v)
+    | PApp p1 p2 => (p_has_free_occurrence p1 v) /\ (p_has_free_occurrence p2 v)
+    end.
+
+  (* v ∈ fv(LL) *)
+  Fixpoint ll_has_free_occurrence (ll : LLCtx LL) (v : var) : Prop :=
+    match ll with
+    | LLCtxEmpty => False
+    | LLCtxSubst l x p => (if eq_var x v then False else ll_has_free_occurrence l v) \/
+                            p_has_free_occurrence p v
+    | LLCtxDist l x t => (if eq_var x v then False else ll_has_free_occurrence l v) \/
+                            t_has_free_occurrence t v
+    end
+  with
+    (* v ∈ fv(T) *)
+    t_has_free_occurrence (t : TCtx LL) (v : var) : Prop :=
+      match t with
+      | TCtxLam x ll p => if eq_var x v then False else ll_has_free_occurrence ll v
+      end.
+
+  (* Check property: T := λx.LL<p> where y ∈ dom(LL) ⇒ y ∈ fv(p) *)
+  Definition t_is_good (t : TCtx LL): Prop :=
+    match t with
+    | TCtxLam x ll p => forall y : var, is_in_dom_ll ll y -> p_has_free_occurrence p y
+    end.
+
+  (* Check property: LL := LL[x//T] where x ∉ fv(LL) *)
+  Definition ll_is_good (ll : LLCtx LL): Prop :=
+    match ll with
+    | LLCtxDist ll' x t => not (ll_has_free_occurrence ll' x)
+    | _ => True
+    end.
+
   (* U - Restricted terms context *)
   Inductive UCtx : ckind -> Type :=
   | UCtxVar : var -> UCtx LL (* x *)
