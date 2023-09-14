@@ -49,12 +49,39 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
   (* with x plugged in the hole. Thus they are neutral terms with *)
   (* the variable x being needed. *)
 
-  Inductive term :=
-  | Var      : var -> term                         (* variable *)
-  | Lam      : var -> term -> term                 (* lambda abstraction *)
-  | App      : term -> term -> term                (* application *)
-  | ExpSubst : var -> term -> term -> term         (* explicit substitution t[x/u] *)
-  | ExpDist  : var -> var -> term -> term -> term. (* explicit distributor t[x // λy.u]  *)
+  Inductive expr :=
+  | Var       : var -> expr                                 (* variable *)
+  | Lam       : var -> expr -> expr                         (* lambda abstraction *)
+  | App       : expr -> expr -> expr                        (* application *)
+
+  | ExpSubst  : expr -> var -> expr -> expr                 (* explicit substitution t[x / u] *)
+                                                            (* will evaluate t first *)
+
+  | ExpSubstS : forall x, needy x -> expr -> expr           (* strict explicit substitution n_x[x / u] *)
+                                                            (* will evaluate u first *)
+
+  | ExpDist   : forall x y : var,                           (* explicit distributor t[x // λy.u] *)
+      x <> y -> expr -> expr -> expr                        (* will evaluate t first *)
+
+  | ExpDistS  : forall x y : var,                           (* strict explicit distributor n_x[x // λy.u] *)
+      x <> y -> needy x -> expr -> expr                     (* will evaluate u first *)
+
+  with
+    needy : var -> Type := (* needys parameterized by head variable *)
+    | nVar       : forall x : var, needy x
+    | nApp       : forall x : var, needy x -> expr -> needy x       (* (n_x t) *)
+
+    | nExpSubst  : forall x y,
+        x <> y -> needy x -> expr -> needy x (* n_x[y / u] *)
+    | nExpSubstS : forall x y,
+        needy y -> needy x -> needy x        (* strict n_y[y / n_x] *)
+
+    | nExpDist  : forall x y z : var,                               (* n_x[y // λz.u] *)
+        x <> y -> y <> z -> needy x -> expr -> needy x
+    | nExpDistS : forall x y z : var,                               (* strict n_y[y // λz.n_x] *)
+        y <> z -> needy y -> needy x -> needy x.
+
+  Definition term := expr.
 
   Notation " t @ s " := (App t s) (at level 40).
   Notation " # x " := (Var x) (at level 7).
@@ -81,12 +108,6 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
   (* | termCtxDist   : termCtx E -> var -> var -> term -> termCtx E  (* C[x // λy.u] *) *)
   (* | termCtxTSubst : term -> var -> termCtx E -> termCtx E         (* t[x / C] *) *)
   (* | termCtxTDist  : term -> var -> var -> termCtx E -> termCtx E. (* t[x // λy.C] *) *)
-
-  (* TODO: implement is_in_dom(LL) *)
-
-  (* TODO: implement free_occurrence_count(pure_term, x) *)
-
-  (* TODO: implement free_occurrence_count(LL, x) *)
 
   (* L - Lists context *)
   Inductive LCtx : ckind -> Type :=
@@ -164,6 +185,19 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
   | NCtxSubst : NCtx N -> var -> term -> NCtx N (* N[x / t] *)
   | NCtxDist : NCtx N -> var -> term -> NCtx N (* N[x // t] *)
   | NCtxPlugSubst : NCtx N -> var -> var -> NCtx N -> NCtx N. (* N<<x>>[x/N] *)
+
+
+
+
+
+
+
+
+
+
+
+
+
 
   (* Answer contexts look like substitutions. *)
   Inductive ansCtx : ckind -> Type :=
