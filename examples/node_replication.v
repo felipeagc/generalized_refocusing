@@ -82,6 +82,7 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
         y <> z -> needy y -> needy x -> needy x.
 
   Definition term := expr.
+  Hint Unfold term.
 
   Notation " t @ s " := (App t s) (at level 40).
   Notation " # x " := (Var x) (at level 7).
@@ -95,19 +96,15 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
   | PApp : pure_term -> pure_term -> pure_term.    (* application *)
 
   (* v *)
-  Inductive val :=
-  | VLam : var -> term  -> val.
+  Inductive val : ckind -> Type :=
+  | vLam : var -> term  -> val N.
 
-  (* C *)
-  (* Inductive termCtx : ckind -> Type := *)
-  (* | termCtxEmpty  : termCtx E                                     (* <> *) *)
-  (* | termCtxLam    : var -> termCtx E -> termCtx E                 (* λx.C *) *)
-  (* | termCtxApp    : termCtx E -> term -> termCtx E                (* Ct *) *)
-  (* | termCtxTApp   : term -> termCtx E -> termCtx E                (* tC *) *)
-  (* | termCtxSubst  : termCtx E -> var -> term -> termCtx E         (* C[x / t] *) *)
-  (* | termCtxDist   : termCtx E -> var -> var -> term -> termCtx E  (* C[x // λy.u] *) *)
-  (* | termCtxTSubst : term -> var -> termCtx E -> termCtx E         (* t[x / C] *) *)
-  (* | termCtxTDist  : term -> var -> var -> termCtx E -> termCtx E. (* t[x // λy.C] *) *)
+  Fixpoint val_to_term {k} (v : val k) : term :=
+      match v with
+      | vLam x t => Lam x t
+      end.
+
+  Coercion val_to_term : val >-> term.
 
   (* L - Lists context *)
   Inductive LCtx : ckind -> Type :=
@@ -124,6 +121,14 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
     | LLCtxEmpty : LLCtx LL                                 (* <> *)
     | LLCtxSubst : LLCtx LL -> var -> pure_term -> LLCtx LL (* LL[x / p] *)
     | LLCtxDist  : LLCtx LL -> var -> TCtx LL -> LLCtx LL.  (* LL[x // T] *)
+
+  (* U - Restricted terms context *)
+  Inductive UCtx : ckind -> Type :=
+  | UCtxVar : var -> UCtx LL (* x *)
+  | UCtxVal : val N -> UCtx LL (* v *)
+  | UCtxApp : UCtx LL -> UCtx LL -> UCtx LL (* UU *)
+  | UCtxSubst : UCtx LL -> var -> UCtx LL -> UCtx LL (* U[x / U] *)
+  | UCtxDist : UCtx LL -> var -> TCtx LL -> UCtx LL. (* U[x // T] *)
 
   (* y ∈ dom(LL) *)
   Fixpoint is_in_dom_ll (ll : LLCtx LL) (v : var): Prop :=
@@ -170,56 +175,17 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
     | _ => True
     end.
 
-  (* U - Restricted terms context *)
-  Inductive UCtx : ckind -> Type :=
-  | UCtxVar : var -> UCtx LL (* x *)
-  | UCtxVal : val -> UCtx LL (* v *)
-  | UCtxApp : UCtx LL -> UCtx LL -> UCtx LL (* UU *)
-  | UCtxSubst : UCtx LL -> var -> UCtx LL -> UCtx LL (* U[x / U] *)
-  | UCtxDist : UCtx LL -> var -> TCtx LL -> UCtx LL. (* U[x // T] *)
-
-  (* Answer context *)
-  Inductive NCtx : ckind -> Type :=
-  | NCtxEmpty : NCtx N (* <> *)
-  | NCtxApp : NCtx N -> term -> NCtx N (* Nt *)
-  | NCtxSubst : NCtx N -> var -> term -> NCtx N (* N[x / t] *)
-  | NCtxDist : NCtx N -> var -> term -> NCtx N (* N[x // t] *)
-  | NCtxPlugSubst : NCtx N -> var -> var -> NCtx N -> NCtx N. (* N<<x>>[x/N] *)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-  (* Answer contexts look like substitutions. *)
+  (* N - Answer context *)
   Inductive ansCtx : ckind -> Type :=
-  | ansCtxEmpty : ansCtx E
-  | ansCtxLet : var -> expr -> ansCtx E -> ansCtx E.
-
-  Definition term := expr.
-  Hint Unfold term.
-
-  Inductive val : ckind -> Type :=
-  | vLam : var -> term  -> val E.
-
-  Fixpoint val_to_term {k} (v : val k) : term :=
-      match v with
-      | vLam x t => Lam x t
-      end.
-
-  Coercion val_to_term : val >-> term.
+  | ansCtxEmpty : ansCtx N (* <> *)
+  | ansCtxApp : ansCtx N -> term -> ansCtx N (* Nt *)
+  | ansCtxSubst : ansCtx N -> var -> term -> ansCtx N (* N[x / t] *)
+  | ansCtxDist : forall x y : var, x <> y -> ansCtx N -> term -> ansCtx N (* N[x // λy.t] *)
+  | ansCtxPlugSubst : ansCtx N -> var -> var -> ansCtx N -> ansCtx N. (* N<<x>>[x/N] *)
 
   Inductive answer : ckind -> Type :=
-  | ansVal : val E -> ansCtx E -> answer E (* (λ x . t) [y/s...] *)
-  | ansNd : forall x, needy x -> answer E. (* all needys are open terms and (intermediate) answers *)
+  | ansVal : val N -> ansCtx N -> answer N (* (λ x . t) [y/s...] *)
+  | ansNd : forall x, needy x -> answer N. (* all needys are open terms and (intermediate) answers *)
 
   (* It should be made clear here that the values in this *)
   (* implementation of refocusing are not the same as values in the Danvy *)
@@ -239,18 +205,24 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
   Hint Unfold value.
 
   (* A function for plugging a term to an answer context *)
-  Fixpoint ansCtx_plug {E} (s : ansCtx E) (t : term) :=
+  Fixpoint ansCtx_plug {N} (s : ansCtx N) (t : term) :=
   match s with
   | ansCtxEmpty => t
-  | ansCtxLet x r s' => Let x r (ansCtx_plug s' t)
+  | ansCtxApp s' r => App (ansCtx_plug s' t) r
+  | ansCtxSubst s' x r => ExpSubst (ansCtx_plug s' t) x r
+  | ansCtxDist x y neq s' r => ExpDist x y neq (ansCtx_plug s' t) r
+  | ansCtxPlugSubst s1 x1 x2 s2  => t
   end.
 
   Fixpoint needy_to_term {x} (n : needy x) : term :=
   match n with
   | nVar x => Var x
   | nApp _ n t => App (needy_to_term n) t
-  | nLet x y _ e n => Let x e (needy_to_term n)
-  | nLetS y x n1 n2 => LetS y (needy_to_term n1) n2
+  | nExpSubst _ y _ n e => ExpSubst (needy_to_term n) y e
+  | nExpSubstS x y n_y n_x => ExpSubstS y n_y (needy_to_term n_x)
+
+  | nExpDist x y z neq_xy neq_yz n_x e => ExpDist y z neq_yz (needy_to_term n_x) e
+  | nExpDistS x y z neq_yz n_y n_x => ExpDistS y z neq_yz n_y (needy_to_term n_x)
   end.
 
   Fixpoint answer_to_term {k} (a : answer k) : term :=
