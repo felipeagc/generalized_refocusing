@@ -90,6 +90,8 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
   Notation " t [ x '//' 'λ' y , u ] " := (ExpDist x y u t) (at level 46).
   Notation " 'λ'  x , t " := (Lam x t) (at level 50).
 
+
+
   Inductive pure_term :=
   | PVar : var -> pure_term                        (* variable *)
   | PLam : var -> pure_term -> pure_term           (* lambda abstraction *)
@@ -106,11 +108,13 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
 
   Coercion val_to_term : val >-> term.
 
+
+
   (* L - Lists context *)
   Inductive LCtx : ckind -> Type :=
-  | LCtxEmpty : LCtx L                                  (* <> *)
-  | LCtxSubst : LCtx L -> var -> term -> LCtx L         (* L[x / u] *)
-  | LCtxDist  : LCtx L -> var -> var -> term -> LCtx L. (* L[x // λy.u] *)
+  | LCtxEmpty : LCtx L                             (* <> *)
+  | LCtxSubst : LCtx L -> var -> term -> LCtx L    (* L[x / u] *)
+  | LCtxDist  : forall x y : var, x <> y -> LCtx L -> term -> LCtx L.  (* L[x // λy.u] *)
 
   (* T - Linear Cut Values *)
   Inductive TCtx : ckind -> Type :=
@@ -129,6 +133,8 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
   | UCtxApp : UCtx LL -> UCtx LL -> UCtx LL (* UU *)
   | UCtxSubst : UCtx LL -> var -> UCtx LL -> UCtx LL (* U[x / U] *)
   | UCtxDist : UCtx LL -> var -> TCtx LL -> UCtx LL. (* U[x // T] *)
+
+
 
   (* y ∈ dom(LL) *)
   Fixpoint is_in_dom_ll (ll : LLCtx LL) (v : var): Prop :=
@@ -175,13 +181,15 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
     | _ => True
     end.
 
+
+
   (* N - Answer context *)
   Inductive ansCtx : ckind -> Type :=
   | ansCtxEmpty : ansCtx N (* <> *)
   | ansCtxApp : ansCtx N -> term -> ansCtx N (* Nt *)
   | ansCtxSubst : ansCtx N -> var -> term -> ansCtx N (* N[x / t] *)
   | ansCtxDist : forall x y : var, x <> y -> ansCtx N -> term -> ansCtx N (* N[x // λy.t] *)
-  | ansCtxPlugSubst : ansCtx N -> var -> var -> ansCtx N -> ansCtx N. (* N<<x>>[x/N] *)
+  | ansCtxPlugSubst : ansCtx N -> var -> ansCtx N -> ansCtx N. (* N<<x>>[x/N] *)
 
   Inductive answer : ckind -> Type :=
   | ansVal : val N -> ansCtx N -> answer N (* (λ x . t) [y/s...] *)
@@ -205,25 +213,35 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
   Hint Unfold value.
 
   (* A function for plugging a term to an answer context *)
+  Fixpoint LCtx_plug {L} (s : LCtx L) (t : term) :=
+  match s with
+  | LCtxEmpty => t
+  | LCtxSubst s' x r => ExpSubst (LCtx_plug s' t) x r
+  | LCtxDist x y neq s' r => ExpDist x y neq (LCtx_plug s' t) r
+  end.
+
+  (* A function for plugging a term to an answer context *)
   Fixpoint ansCtx_plug {N} (s : ansCtx N) (t : term) :=
   match s with
   | ansCtxEmpty => t
   | ansCtxApp s' r => App (ansCtx_plug s' t) r
   | ansCtxSubst s' x r => ExpSubst (ansCtx_plug s' t) x r
   | ansCtxDist x y neq s' r => ExpDist x y neq (ansCtx_plug s' t) r
-  | ansCtxPlugSubst s1 x1 x2 s2  => t
+  | ansCtxPlugSubst s1 _ s2 => (ansCtx_plug s1 (ansCtx_plug s2 t)) (* not sure *)
   end.
+
 
   Fixpoint needy_to_term {x} (n : needy x) : term :=
   match n with
   | nVar x => Var x
   | nApp _ n t => App (needy_to_term n) t
   | nExpSubst _ y _ n e => ExpSubst (needy_to_term n) y e
-  | nExpSubstS x y n_y n_x => ExpSubstS y n_y (needy_to_term n_x)
+  | nExpSubstS _ y n_y n_x => ExpSubstS y n_y (needy_to_term n_x)
 
-  | nExpDist x y z neq_xy neq_yz n_x e => ExpDist y z neq_yz (needy_to_term n_x) e
-  | nExpDistS x y z neq_yz n_y n_x => ExpDistS y z neq_yz n_y (needy_to_term n_x)
+  | nExpDist _ y z _ neq_yz n_x e => ExpDist y z neq_yz (needy_to_term n_x) e
+  | nExpDistS _ y z neq_yz n_y n_x => ExpDistS y z neq_yz n_y (needy_to_term n_x)
   end.
+
 
   Fixpoint answer_to_term {k} (a : answer k) : term :=
   match a with
@@ -234,12 +252,13 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
   Coercion answer_to_term : answer >-> term.
   Coercion needy_to_term : needy >-> term.
 
+
   (* Here we define the set of potential redices. *)
   (* Actually, they are just redices as defined in the paper *)
   Inductive red : ckind -> Type :=
-  | rApp : val E -> ansCtx E -> term -> red E                 (* A[v] t *)
-  | rLetS : forall x, needy x -> val E -> ansCtx E -> red E   (* let x := A[v] in E[x] *)
-  | rLet : forall x, term -> needy x -> red E.                (* let x = t in E[x] *)
+  | rApp : LCtx L -> val L -> term -> red N            (* L<v> u *)
+  | rSpl : ansCtx N -> var -> LCtx L -> val L -> red N (* N<<x>>[x/L<λy.p>] *)
+  | rLs  : ansCtx N -> var -> val L -> red N.          (* N<<x>>[x//v] *)
 
   Definition redex := red.
   Hint Unfold redex.
@@ -247,9 +266,9 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
 
   Definition redex_to_term {k} (r : redex k) : term :=
       match r with
-      | rApp v s t => App (ansCtx_plug s v) t
-      | rLetS x n v s => LetS x (ansCtx_plug s (val_to_term v)) n
-      | rLet x t n => Let x t (needy_to_term n)
+      | rApp l v t => App (LCtx_plug l v) t
+      | rSpl s x l v => ExpSubst (ansCtx_plug s (Var x)) x (LCtx_plug l v)
+      | rLs s x v => ExpSubst (ansCtx_plug s (Var x)) x (val_to_term v)
       end.
 
   Coercion redex_to_term : redex >-> term.
@@ -265,7 +284,7 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
 
 
   Lemma ansCtx_plug_val_injective :
-    forall {k} (s s' : ansCtx k) (v v' : val E),
+    forall {k} (s s' : ansCtx k) (v v' : val N),
     ansCtx_plug s v = ansCtx_plug s' v' -> s = s' /\ v = v'.
 
   Proof with auto.
