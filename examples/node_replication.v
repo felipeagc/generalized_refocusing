@@ -352,65 +352,71 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
   Abort.
 
 
-  Lemma ansCtx_plug_lets_injective :
-    forall {k} (s s' : ansCtx k) x y e1 e2 nx ny,
-      ansCtx_plug s (LetS x e1 nx) = ansCtx_plug s' (LetS y e2 ny) ->
-         s = s' /\ e1 = e2 /\ x = y /\ nx ~= ny.
-  Proof with auto.
-    intros k s s' x y e1 e2 nx ny H.
-    induction s; dependent destruction s'; inversion H...
-    elim IHs with s'; intros; subst...
-  Qed.
+  (* Lemma ansCtx_plug_lets_injective : *)
+  (*   forall {k} (s s' : ansCtx k) x y e1 e2 nx ny, *)
+  (*     ansCtx_plug s (LetS x e1 nx) = ansCtx_plug s' (LetS y e2 ny) -> *)
+  (*        s = s' /\ e1 = e2 /\ x = y /\ nx ~= ny. *)
+  (* Proof with auto. *)
+  (*   intros k s s' x y e1 e2 nx ny H. *)
+  (*   induction s; dependent destruction s'; inversion H... *)
+  (*   elim IHs with s'; intros; subst... *)
+  (* Qed. *)
 
-  Lemma ansCtx_plug_needy :
-    forall {k} (s s' : ansCtx k) (v : val E) {x} (n : needy x),
-    ansCtx_plug s v = ansCtx_plug s' n -> False.
-  Proof with auto.
-    induction s; simpl; intros.
-    destruct v; destruct s'; destruct n; discriminate.
-    destruct s'. destruct n; simpl in *; try discriminate.
-    inversion H. elim IHs with ansCtxEmpty v0 x n0...
-    inversion H. elim (IHs _ _ _ _ H3).
-  Qed.
+  (* Lemma ansCtx_plug_needy : *)
+  (*   forall {k} (s s' : ansCtx k) (v : val E) {x} (n : needy x), *)
+  (*   ansCtx_plug s v = ansCtx_plug s' n -> False. *)
+  (* Proof with auto. *)
+  (*   induction s; simpl; intros. *)
+  (*   destruct v; destruct s'; destruct n; discriminate. *)
+  (*   destruct s'. destruct n; simpl in *; try discriminate. *)
+  (*   inversion H. elim IHs with ansCtxEmpty v0 x n0... *)
+  (*   inversion H. elim (IHs _ _ _ _ H3). *)
+  (* Qed. *)
 
-  Lemma ansCtx_plug_var :
-    forall {k} (s s' : ansCtx k) x (v : val E),
-    ansCtx_plug s v = ansCtx_plug s' (Var x) -> False.
-  Proof with auto.
-    induction s; simpl; intros.
-    destruct v; destruct s'; discriminate.
-    destruct s'. discriminate.
-    inversion H. elim IHs with s' x v0...
-  Qed.
+  (* Lemma ansCtx_plug_var : *)
+  (*   forall {k} (s s' : ansCtx k) x (v : val E), *)
+  (*   ansCtx_plug s v = ansCtx_plug s' (Var x) -> False. *)
+  (* Proof with auto. *)
+  (*   induction s; simpl; intros. *)
+  (*   destruct v; destruct s'; discriminate. *)
+  (*   destruct s'. discriminate. *)
+  (*   inversion H. elim IHs with s' x v0... *)
+  (* Qed. *)
 
   Lemma needy_to_term_injective :
     forall {x y} (n : needy x) (n' : needy y),
     needy_to_term n = needy_to_term n' -> n ~= n' /\ x = y.
-
   Proof with auto.
     induction n; intros; destruct n'; try discriminate;
     inversion H; subst;
     try elim IHn with n'; intros; subst; try split...
     dependent rewrite H0...
+
     subst; rewrite proof_irrelevance with (x0 <> y) n n1...
-    subst; dependent rewrite H3.    elim IHn1 with n'2; intros; subst...
+    elim IHn2 with n'2; intros; subst...
+
     dependent rewrite H0; auto.
-    elim IHn1 with n'1...
-  Qed.
 
-  Lemma answer_to_term_injective :
-    forall {k} (a a' : answer k),
-    answer_to_term a = answer_to_term a' -> a = a'.
+    elim IHn2 with n'2...
 
-  Proof with auto.
-    destruct a; dependent destruction  a'; intros...
-    f_equal; elim ansCtx_plug_val_injective with a a0 v v0...
-    elim ansCtx_plug_needy with a ansCtxEmpty v _ n...
-    elim ansCtx_plug_needy with a ansCtxEmpty v _ n...
-    inversion H.
-    elim needy_to_term_injective with n n0; intros; subst...
-    rewrite H0...
-  Qed.
+    subst; rewrite proof_irrelevance with (x0 <> y) n n1...
+
+    elim IHn2 with n'2. intros. subst...
+  Abort.
+
+
+  (* Lemma answer_to_term_injective : *)
+  (*   forall {k} (a a' : answer k), *)
+  (*   answer_to_term a = answer_to_term a' -> a = a'. *)
+  (* Proof with auto. *)
+  (*   destruct a; dependent destruction  a'; intros... *)
+  (*   f_equal; elim ansCtx_plug_val_injective with a a0 v v0... *)
+  (*   elim ansCtx_plug_needy with a ansCtxEmpty v _ n... *)
+  (*   elim ansCtx_plug_needy with a ansCtxEmpty v _ n... *)
+  (*   inversion H. *)
+  (*   elim needy_to_term_injective with n n0; intros; subst... *)
+  (*   rewrite H0... *)
+  (* Qed. *)
 
 
 
