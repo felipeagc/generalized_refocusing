@@ -140,7 +140,10 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
   | rtVal : val N -> restricted_term (* v *)
   | rtApp : restricted_term -> restricted_term -> restricted_term  (* UU *)
   | rtSubst : restricted_term -> var -> restricted_term -> restricted_term (* U[x / U] *)
-  | rtDist : restricted_term -> var -> linear_cut_val -> restricted_term. (* U[x // T] *)
+  (* | rtSubstA : forall x, needy_restricted_term x -> restricted_term -> restricted_term (* U[x / U] *) *)
+  | rtDist : restricted_term -> var -> linear_cut_val -> restricted_term (* U[x // T] *)
+      (* | rtDistA : forall x, needy_restricted_term x -> needy_restricted_term -> linear_cut_val -> restricted_term (* U[x // T] *) *)
+  . 
 
 
 
@@ -192,15 +195,15 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
 
 
   (* N - Answer context *)
-  Inductive ansCtx : ckind -> Type :=
-  | ansCtxEmpty : ansCtx N (* <> *)
-  | ansCtxApp : ansCtx N -> term -> ansCtx N (* Nt *)
-  | ansCtxSubst : ansCtx N -> var -> term -> ansCtx N (* N[x / t] *)
-  | ansCtxDist : ansCtx N -> var -> var -> term -> ansCtx N (* N[x // λy.t] *)
-  | ansCtxPlugSubst : ansCtx N -> var -> ansCtx N -> ansCtx N. (* N<<x>>[x/N] *)
+  (* Inductive ansCtx : ckind -> Type := *)
+  (* | ansCtxEmpty : ansCtx N (* <> *) *)
+  (* | ansCtxApp : ansCtx N -> term -> ansCtx N (* Nt *) *)
+  (* | ansCtxSubst : ansCtx N -> var -> term -> ansCtx N (* N[x / t] *) *)
+  (* | ansCtxDist : ansCtx N -> var -> var -> term -> ansCtx N (* N[x // λy.t] *) *)
+  (* | ansCtxPlugSubst : ansCtx N -> var -> ansCtx N -> ansCtx N. (* N<<x>>[x/N] *) *)
 
   Inductive answer : ckind -> Type :=
-  | ansVal : val N -> ansCtx N -> answer N
+  | ansVal : val N -> lCtx L -> answer N
   | ansNd : forall x, needy x -> answer N.
 
   (* It should be made clear here that the values in this *)
@@ -229,14 +232,14 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
   end.
 
   (* A function for plugging a term to an answer context *)
-  Fixpoint ansCtx_plug {N} (s : ansCtx N) (t : term) :=
-  match s with
-  | ansCtxEmpty => t
-  | ansCtxApp s' r => App (ansCtx_plug s' t) r
-  | ansCtxSubst s' x r => ExpSubst (ansCtx_plug s' t) x r
-  | ansCtxDist s' x y r => ExpDist (ansCtx_plug s' t) x y r
-  | ansCtxPlugSubst s1 x s2 => ExpSubst (ansCtx_plug s1 (Var x)) x (ansCtx_plug s2 t)
-  end.
+  (* Fixpoint ansCtx_plug {N} (s : ansCtx N) (t : term) := *)
+  (* match s with *)
+  (* | ansCtxEmpty => t *)
+  (* | ansCtxApp s' r => App (ansCtx_plug s' t) r *)
+  (* | ansCtxSubst s' x r => ExpSubst (ansCtx_plug s' t) x r *)
+  (* | ansCtxDist s' x y r => ExpDist (ansCtx_plug s' t) x y r *)
+  (* | ansCtxPlugSubst s1 x s2 => ExpSubst (ansCtx_plug s1 (Var x)) x (ansCtx_plug s2 t) *)
+  (* end. *)
 
 
   Fixpoint needy_to_term {x} (n : needy x) : term :=
@@ -253,7 +256,7 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
 
   Fixpoint answer_to_term {k} (a : answer k) : term :=
   match a with
-  | ansVal v s => ansCtx_plug s v
+  | ansVal v s => lCtx_plug s v
   | ansNd _ n   => needy_to_term n
   end.
 
@@ -264,9 +267,9 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
   (* Here we define the set of potential redices. *)
   (* Actually, they are just redices as defined in the paper *)
   Inductive red : ckind -> Type :=
-  | rApp : lCtx L -> val L -> term -> red N            (* L<v> u *)
-  | rSpl : ansCtx N -> var -> lCtx L -> val L -> red N (* N<<x>>[x/L<λy.p>] *)
-  | rLs  : ansCtx N -> var -> val L -> red N.          (* N<<x>>[x//v] *)
+  | rApp : lCtx L -> val N -> term -> red N            (* L<v> u *)
+  | rSpl : forall x, needy x -> val N -> lCtx L -> red N (* N<<x>>[x/L<λy.p>] *)
+  | rLs  : forall x, needy x -> val N -> red N.          (* N<<x>>[x//v] *)
 
   Definition redex := red.
   Hint Unfold redex.
@@ -275,8 +278,8 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
   Definition redex_to_term {k} (r : redex k) : term :=
       match r with
       | rApp l v t => App (lCtx_plug l v) t
-      | rSpl s x l v => ExpSubst (ansCtx_plug s (Var x)) x (lCtx_plug l v)
-      | rLs s x v => ExpSubst (ansCtx_plug s (Var x)) x (val_to_term v)
+      | rSpl x n v s => ExpSubstS x n (lCtx_plug s (val_to_term v))
+      | rLs x n v => ExpSubst (needy_to_term n) x (val_to_term v)
       end.
 
   Coercion redex_to_term : redex >-> term.
@@ -318,70 +321,66 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
   Qed.
 
 
-  Lemma ansCtx_plug_val_injective :
-    forall {k} (s s' : ansCtx k) (v v' : val N),
-    ansCtx_plug s v = ansCtx_plug s' v' -> s = s' /\ v = v'.
+  Lemma lCtx_plug_val_injective :
+    forall {k} (s s' : lCtx k) (v v' : val N),
+    lCtx_plug s v = lCtx_plug s' v' -> s = s' /\ v = v'.
   Proof with auto.
     intros k s s' v v' H.
-    induction s; dependent destruction s'; inversion H.
+    induction s; dependent destruction s'; inversion H...
     destruct v; dependent destruction v'; inversion H1...
-    split. reflexivity. apply pure_term_to_term_injective in H3. rewrite H3. reflexivity.
+    apply pure_term_to_term_injective in H3; rewrite H3; auto.
 
-    destruct v; dependent destruction s'; inversion H1...
-    destruct v0; dependent destruction s'; inversion H1...
-    destruct v1; dependent destruction s'; inversion H1...
-    destruct v0; dependent destruction s'1; inversion H1...
+    destruct v0; dependent destruction s'; inversion H...
+    destruct v1; dependent destruction s'; inversion H...
 
-    dependent destruction s; destruct v'; inversion H1...
+    dependent destruction s; destruct v'; inversion H1; split...
     split; f_equal; elim IHs with s'...
 
-    dependent destruction s; destruct v'; inversion H1...
+    dependent destruction s; destruct v'; inversion H1; split...
     split; f_equal; elim IHs with s'...
-
-    rewrite <- H3.
-  Abort.
+  Qed.
 
 
-  Lemma ansCtx_plug_var_injective :
-    forall {k} (s s' : ansCtx k) x x',
-    ansCtx_plug s (Var x) = ansCtx_plug s' (Var x') -> s = s' /\ x = x'.
+  Lemma lCtx_plug_var_injective :
+    forall {k} (s s' : lCtx k) x x',
+    lCtx_plug s (Var x) = lCtx_plug s' (Var x') -> s = s' /\ x = x'.
   Proof with auto.
     intros k s s' x x' H.
-    induction s...
-    dependent destruction s'...
-  Abort.
+    induction s; dependent destruction s'; inversion H...
+    split; f_equal; elim IHs with s'...
+    split; f_equal; elim IHs with s'...
+  Qed.
 
 
-  (* Lemma ansCtx_plug_lets_injective : *)
-  (*   forall {k} (s s' : ansCtx k) x y e1 e2 nx ny, *)
-  (*     ansCtx_plug s (LetS x e1 nx) = ansCtx_plug s' (LetS y e2 ny) -> *)
-  (*        s = s' /\ e1 = e2 /\ x = y /\ nx ~= ny. *)
-  (* Proof with auto. *)
-  (*   intros k s s' x y e1 e2 nx ny H. *)
-  (*   induction s; dependent destruction s'; inversion H... *)
-  (*   elim IHs with s'; intros; subst... *)
-  (* Qed. *)
+  Lemma lCtx_plug_needy :
+    forall {k} (s s' : lCtx k) (v : val N) {x} (n : needy x),
+    lCtx_plug s v = lCtx_plug s' n -> False.
+  Proof with auto.
+    induction s; simpl; intros.
+    destruct v; destruct s'; destruct n; discriminate.
+    destruct s'. destruct n; simpl in *; try discriminate.
+    inversion H; elim IHs with lEmpty v0 x n0...
+    inversion H; elim (IHs _ _ _ _ H1).
+    inversion H.
+    destruct s'. destruct n; simpl in *; try discriminate.
+    inversion H. elim IHs with lEmpty v1 x n0...
+    inversion H; elim (IHs _ _ _ _ H1).
+    inversion H; elim (IHs _ _ _ _ H1).
+  Qed.
 
-  (* Lemma ansCtx_plug_needy : *)
-  (*   forall {k} (s s' : ansCtx k) (v : val E) {x} (n : needy x), *)
-  (*   ansCtx_plug s v = ansCtx_plug s' n -> False. *)
-  (* Proof with auto. *)
-  (*   induction s; simpl; intros. *)
-  (*   destruct v; destruct s'; destruct n; discriminate. *)
-  (*   destruct s'. destruct n; simpl in *; try discriminate. *)
-  (*   inversion H. elim IHs with ansCtxEmpty v0 x n0... *)
-  (*   inversion H. elim (IHs _ _ _ _ H3). *)
-  (* Qed. *)
-
-  (* Lemma ansCtx_plug_var : *)
-  (*   forall {k} (s s' : ansCtx k) x (v : val E), *)
-  (*   ansCtx_plug s v = ansCtx_plug s' (Var x) -> False. *)
-  (* Proof with auto. *)
-  (*   induction s; simpl; intros. *)
-  (*   destruct v; destruct s'; discriminate. *)
-  (*   destruct s'. discriminate. *)
-  (*   inversion H. elim IHs with s' x v0... *)
-  (* Qed. *)
+  Lemma lCtx_plug_var :
+    forall {k} (s s' : lCtx k) x (v : val N),
+    lCtx_plug s v = lCtx_plug s' (Var x) -> False.
+  Proof with auto.
+    induction s; simpl; intros.
+    destruct v; destruct s'; discriminate.
+    destruct s'. discriminate.
+    inversion H. elim IHs with s' x v0...
+    inversion H. 
+    destruct s'. discriminate.
+    inversion H. elim IHs with s' x v1...
+    inversion H. elim IHs with s' x v1...
+  Qed.
 
   Lemma needy_to_term_injective :
     forall {x y} (n : needy x) (n' : needy y),
@@ -399,24 +398,30 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
 
     elim IHn2 with n'2...
 
-    subst; rewrite proof_irrelevance with (x0 <> y) n n1...
+    subst. rewrite proof_irrelevance with (x0 <> y) n n1...
 
-    elim IHn2 with n'2. intros. subst...
+    elim IHn2 with n'2; intros; subst...
+    subst. rewrite proof_irrelevance with (y <> z0) n n1...
+    subst. rewrite proof_irrelevance with (z0 <> x0) n0 n2...
+    subst. 
+    (* rewrite proof_irrelevance with (z0 <> x0) n'1 n3... *)
+    (**)
+    (* dependent rewrite H2. *)
   Abort.
 
 
-  (* Lemma answer_to_term_injective : *)
-  (*   forall {k} (a a' : answer k), *)
-  (*   answer_to_term a = answer_to_term a' -> a = a'. *)
-  (* Proof with auto. *)
-  (*   destruct a; dependent destruction  a'; intros... *)
-  (*   f_equal; elim ansCtx_plug_val_injective with a a0 v v0... *)
-  (*   elim ansCtx_plug_needy with a ansCtxEmpty v _ n... *)
-  (*   elim ansCtx_plug_needy with a ansCtxEmpty v _ n... *)
-  (*   inversion H. *)
-  (*   elim needy_to_term_injective with n n0; intros; subst... *)
-  (*   rewrite H0... *)
-  (* Qed. *)
+  Lemma answer_to_term_injective :
+    forall {k} (a a' : answer k),
+    answer_to_term a = answer_to_term a' -> a = a'.
+  Proof with auto.
+    destruct a; dependent destruction  a'; intros...
+    f_equal; elim lCtx_plug_val_injective with l l0 v v0...
+    elim lCtx_plug_needy with l lEmpty v _ n...
+    elim lCtx_plug_needy with l lEmpty v _ n...
+    inversion H.
+    elim needy_to_term_injective with n n0; intros; subst...
+    rewrite H0...
+  Qed.
 
 
 
