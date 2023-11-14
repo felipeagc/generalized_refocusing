@@ -193,15 +193,6 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
     end.
 
 
-
-  (* N - Answer context *)
-  (* Inductive ansCtx : ckind -> Type := *)
-  (* | ansCtxEmpty : ansCtx N (* <> *) *)
-  (* | ansCtxApp : ansCtx N -> term -> ansCtx N (* Nt *) *)
-  (* | ansCtxSubst : ansCtx N -> var -> term -> ansCtx N (* N[x / t] *) *)
-  (* | ansCtxDist : ansCtx N -> var -> var -> term -> ansCtx N (* N[x // λy.t] *) *)
-  (* | ansCtxPlugSubst : ansCtx N -> var -> ansCtx N -> ansCtx N. (* N<<x>>[x/N] *) *)
-
   Inductive answer : ckind -> Type :=
   | ansVal : val N -> lCtx L -> answer N
   | ansNd : forall x, needy x -> answer N.
@@ -230,16 +221,6 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
   | lSubst s' x r => ExpSubst (lCtx_plug s' t) x r
   | lDist s' x y r => ExpDist (lCtx_plug s' t) x y r
   end.
-
-  (* A function for plugging a term to an answer context *)
-  (* Fixpoint ansCtx_plug {N} (s : ansCtx N) (t : term) := *)
-  (* match s with *)
-  (* | ansCtxEmpty => t *)
-  (* | ansCtxApp s' r => App (ansCtx_plug s' t) r *)
-  (* | ansCtxSubst s' x r => ExpSubst (ansCtx_plug s' t) x r *)
-  (* | ansCtxDist s' x y r => ExpDist (ansCtx_plug s' t) x y r *)
-  (* | ansCtxPlugSubst s1 x s2 => ExpSubst (ansCtx_plug s1 (Var x)) x (ansCtx_plug s2 t) *)
-  (* end. *)
 
 
   Fixpoint needy_to_term {x} (n : needy x) : term :=
@@ -382,6 +363,7 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
     inversion H. elim IHs with s' x v1...
   Qed.
 
+  (* TODO *)
   Lemma needy_to_term_injective :
     forall {x y} (n : needy x) (n' : needy y),
     needy_to_term n = needy_to_term n' -> n ~= n' /\ x = y.
@@ -389,25 +371,21 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
     induction n; intros; destruct n'; try discriminate;
     inversion H; subst;
     try elim IHn with n'; intros; subst; try split...
-    dependent rewrite H0...
-
-    subst; rewrite proof_irrelevance with (x0 <> y) n n1...
-    elim IHn2 with n'2; intros; subst...
-
-    dependent rewrite H0; auto.
-
-    elim IHn2 with n'2...
-
-    subst. rewrite proof_irrelevance with (x0 <> y) n n1...
-
-    elim IHn2 with n'2; intros; subst...
-    subst. rewrite proof_irrelevance with (y <> z0) n n1...
-    subst. rewrite proof_irrelevance with (z0 <> x0) n0 n2...
-    subst. 
-    (* rewrite proof_irrelevance with (z0 <> x0) n'1 n3... *)
+    - dependent rewrite H0...
+    - subst; rewrite proof_irrelevance with (x0 <> y) n n1...
+    - dependent rewrite H2. elim IHn2 with n'2; intros; subst...
+      dependent rewrite H0; auto.
+    - elim IHn2 with n'2...
+    - subst; rewrite proof_irrelevance with (x0 <> y) n n1...
+    - elim IHn2 with n'2; intros; subst. dependent rewrite H0.
+      rewrite proof_irrelevance with (y <> z0) n n1.
+      rewrite proof_irrelevance with (z0 <> x0) n2 n0.
+      generalize dependent z0. generalize dependent x0. 
+    (*   dependent rewrite H2. *)
+    (* - elim IHn2 with n'2... *)
     (**)
-    (* dependent rewrite H2. *)
-  Abort.
+    (*   apply JM_eq_from_eq. Search (_=_ -> _~=_). *)
+    Admitted.
 
 
   Lemma answer_to_term_injective :
@@ -434,6 +412,7 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
   Qed.
 
 
+  (* TODO *)
   Lemma redex_to_term_injective :
       forall {k} (r r' : redex k), redex_to_term r = redex_to_term r' -> r = r'.
 
@@ -442,10 +421,10 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
     destruct r ; dependent destruction r';
     inversion H; subst.
     dependent destruction v; dependent destruction v0...
-    f_equal; elim ansCtx_plug_val_injective with a a0 (vLam v t) (vLam v0 t0); intros; subst...
-    elim ansCtx_plug_val_injective with a a0 v v0; intros; subst...
+    f_equal; elim lCtx_plug_val_injective with l l0 (vLam v p) (vLam v0 p0); intros; subst...
+    elim lCtx_plug_val_injective with l l0 v v0; intros; subst...
     elim needy_to_term_injective with n n0; intros; subst...
-  Qed.
+  Admitted.
 
 
   (* Here comes the actual definition of the grammar of contexts. *)
@@ -457,23 +436,26 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
   (* occurring on the right-hand side of a production. *)
 
 
-  Inductive eck : ckind -> ckind -> Type :=
-  | ap_r  : term -> eck E E                           (* E -> E t *)
-  | in_let : var -> term -> eck E E                   (* E -> let x = t in E *)
-  | let_var : forall x, needy x -> eck E E.           (* E -> let x := E in E[x] *)
+  (* N *)
+  Inductive nck : ckind -> ckind -> Type :=
+  | nckApp : term -> nck N N                           (* N -> N t *)
+  | nckSubst : var -> term -> nck N N                  (* N -> N[x / t] *)
+  | nckDist : var -> var -> term -> nck N N            (* N -> N[x // λy.u] *)
+  | nckPlugSubst : forall x, needy x -> nck N N.       (* N -> N<<x>>[x/N] *)
 
-  Definition elem_context_kinded : ckind -> ckind -> Type := eck.
+  Definition elem_context_kinded : ckind -> ckind -> Type := nck.
   Hint Unfold elem_context_kinded.
 
   (* The starting symbol in the grammar *)
-  Definition init_ckind : ckind     :=  E.
+  Definition init_ckind : ckind     :=  N.
 
   (* The function for plugging a term into an elementary context *)
   Definition elem_plug {k1 k2} (t : term) (ec : elem_context_kinded k1 k2) : term :=
       match ec with
-      | ap_r  t' => App t t'
-      | in_let x s => Let x s t
-      | let_var x n => LetS x t n
+      | nckApp t' => App t t'
+      | nckSubst x s => ExpSubst t x s
+      | nckDist x y u => ExpDist t x y u
+      | nckPlugSubst x n => ExpSubstS x n t
       end.
 
 
@@ -482,27 +464,32 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
   (* substitute term s for the needed variable x in the needy term n *)
   Fixpoint subst_needy (x:var) (n:needy x) (s : term) : term :=
     match n with
-    | nVar y => s           (* [x][x:=s] = s *)    (* types guarantee that x=y *)
-    | nApp v n t => App (subst_needy v n s) t      (* (n[x] t)[x:=s] = (n[s] t) *)
-                                                   (*  again, types guarantee that v=x *)
-    | nLet y x' _ e n => Let y e (subst_needy x' n s)
-                            (* (let y = e in n[x])[x:=s] =  (let y = e in n[s])*)
-                            (* again, types guarantee that x=x' *)
-    | nLetS y x' n n' => LetS y (subst_needy x' n s) n'
-                              (* (let y := n[x] in n'[y])[x:=s] = (let y := n[s] in n'[y]) *)
-                              (* here types guarantee that x=x' *)
+    | nVar x' => s                                 (* [x][x:=s] = s *)
+                                                   (* types guarantee that x'=x *)
+    | nApp x' n t => App (subst_needy x' n s) t    (* (n[x] t)[x:=s] = (n[s] t) *)
+                                                   (*  again, types guarantee that x'=x *)
+    | nExpSubst x' y _ n t => ExpSubst (subst_needy x' n s) y t
+    | nExpSubstS x' y ny nx => ExpSubstS y ny (subst_needy x' nx s)
+
+    | nExpDist x' y z _ nx t => ExpDist (subst_needy x' nx s) y z t
+    | nExpDistS x' y z _ _ ny nx => ExpDistS y ny z (subst_needy x' nx s)
     end.
 
 
   (* Now we are ready to define the contraction. *)
   (* For the sake of simplicity we do not introduce the fourth (derived) rule *)
 
+  (* TODO *)
   Definition contract {k} (r : redex k) : option term :=
       match r with
-      | rApp (vLam x r) a t => Some (ansCtx_plug a (Let x t r))    (* a[λx.r]t -> a[let x = t in r] *)
-      | rLetS x n v a => Some (ansCtx_plug a (Let x (val_to_term v) (subst_needy x n v)))
-                              (* let x := a[v] in n[x]  ->  a[let x = v in n[v]]  *)
-      | rLet x t n => Some (LetS x t n)   (* let x = t in n  ->  let x := t in n  *)
+      | rApp l (vLam x p) u => Some (lCtx_plug l (ExpSubst (pure_term_to_term p) x u))
+      | rLs x nx v => Some (ExpDistS )
+      | rSpl x nx (vLam x' p) l => Some (lCtx_plug l (ExpSubst (pure_term_to_term p) x u))
+
+      (* | rApp (vLam x r) a t => Some (lCtx_plug a (Let x t r))    (* a[λx.r]t -> a[let x = t in r] *) *)
+      (* | rLetS x n v a => Some (lCtx_plug a (Let x (val_to_term v) (subst_needy x n v))) *)
+      (*                         (* let x := a[v] in n[x]  ->  a[let x = v in n[v]]  *) *)
+      (* | rLet x t n => Some (LetS x t n)   (* let x = t in n  ->  let x := t in n  *) *)
       end.
 
   (* Having this we include some basic notions *)
