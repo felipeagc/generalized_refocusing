@@ -57,13 +57,13 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
   | ExpSubst  : expr -> var -> expr -> expr                 (* explicit substitution t[x / u] *)
                                                             (* will evaluate t first *)
 
-  | ExpSubstS : forall x : var, needy x -> expr -> expr     (* strict explicit substitution n_x[x / u] *)
+  | ExpSubstS : forall x : var, needy x -> expr -> expr     (* strict explicit substitution n_x[[x / u]] *)
                                                             (* will evaluate u first *)
 
   | ExpDist   :                                             (* explicit distributor t[x // λy.u] *)
       expr -> var -> var -> expr -> expr                    (* will evaluate t first *)
 
-  | ExpDistS  : forall x : var,                             (* strict explicit distributor n_x[x // λy.u] *)
+  | ExpDistS  : forall x : var,                             (* strict explicit distributor n_x[[x // λy.u]] *)
       needy x -> var -> expr -> expr                        (* will evaluate u first *)
 
   with
@@ -74,12 +74,10 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
     | nExpSubst  : forall x y,
         x <> y -> needy x -> expr -> needy x (* n_x[y / u] *)
     | nExpSubstS : forall x y,
-        needy y -> needy x -> needy x        (* strict n_y[y / n_x] *)
+        needy y -> needy x -> needy x        (* strict n_y[[y / n_x]] *)
 
     | nExpDist  : forall x y z : var,                               (* n_x[y // λz.u] *)
-        x <> y -> needy x -> expr -> needy x
-    | nExpDistS : forall x y z : var,                               (* strict n_y[y // λz.n_x] *)
-        y <> z -> z <> x -> needy y -> needy x -> needy x.
+        x <> y -> needy x -> expr -> needy x.
 
   Definition term := expr.
   Hint Unfold term.
@@ -144,8 +142,6 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
   | rtDist : restricted_term -> var -> linear_cut_val -> restricted_term (* U[x // T] *)
       (* | rtDistA : forall x, needy_restricted_term x -> needy_restricted_term -> linear_cut_val -> restricted_term (* U[x // T] *) *)
   . 
-
-
 
   (* y ∈ dom(LL) *)
   Fixpoint is_in_dom_ll (ll : llCtx LL) (v : var): Prop :=
@@ -231,7 +227,6 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
   | nExpSubstS _ y n_y n_x => ExpSubstS y n_y (needy_to_term n_x)
 
   | nExpDist _ y z _ n_x e => ExpDist (needy_to_term n_x) y z e
-  | nExpDistS _ y z _ neq_zx n_y n_x => ExpDistS y n_y z (needy_to_term n_x)
   end.
 
 
@@ -244,13 +239,19 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
   Coercion answer_to_term : answer >-> term.
   Coercion needy_to_term : needy >-> term.
 
-
   (* Here we define the set of potential redices. *)
   (* Actually, they are just redices as defined in the paper *)
   Inductive red : ckind -> Type :=
-  | rApp : lCtx L -> val N -> term -> red N            (* L<v> u *)
-  | rSpl : forall x, needy x -> val N -> lCtx L -> red N (* N<<x>>[x/L<λy.p>] *)
-  | rLs  : forall x, needy x -> val N -> red N.          (* N<<x>>[x//v] *)
+  | rApp  : lCtx L -> val N -> term -> red N            (* L<v> u *)
+  | rSplS : forall x, needy x -> val N -> lCtx L -> red N (* N<<x>>[[x/L<λy.p>]] *)
+  | rSpl  : forall x, needy x -> term -> red N          (* N<<x>>[x/t] *)
+  | rLsS  : forall x, needy x -> val N -> red N.         (* N<<x>>[[x//v]] *)
+  (* | rLs   : forall x, needy x -> term -> red N.        (* N<<x>>[x//t] *) *)
+
+  (* Daniel: redices for `activations':
+      + N<<x>>[x/t]  -> N<<x>>[[x/t]]
+      + N<<x>>[x//t] -> N<<x>>[[x//t]]
+   *)
 
   Definition redex := red.
   Hint Unfold redex.
@@ -259,8 +260,10 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
   Definition redex_to_term {k} (r : redex k) : term :=
       match r with
       | rApp l v t => App (lCtx_plug l v) t
-      | rSpl x n v s => ExpSubstS x n (lCtx_plug s (val_to_term v))
-      | rLs x n v => ExpSubst (needy_to_term n) x (val_to_term v)
+      | rSplS x n v s => ExpSubstS x n (lCtx_plug s (val_to_term v))
+      | rSpl x n t => ExpSubst (needy_to_term n) x t
+      | rLsS x n (vLam v p) => ExpDistS x n v (pure_term_to_term p)
+      (* | rLs x n t => ExpSubst (needy_to_term n) x t *)
       end.
 
   Coercion redex_to_term : redex >-> term.
@@ -363,7 +366,6 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
     inversion H. elim IHs with s' x v1...
   Qed.
 
-  (* TODO *)
   Lemma needy_to_term_injective :
     forall {x y} (n : needy x) (n' : needy y),
     needy_to_term n = needy_to_term n' -> n ~= n' /\ x = y.
@@ -377,15 +379,7 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
       dependent rewrite H0; auto.
     - elim IHn2 with n'2...
     - subst; rewrite proof_irrelevance with (x0 <> y) n n1...
-    - elim IHn2 with n'2; intros; subst. dependent rewrite H0.
-      rewrite proof_irrelevance with (y <> z0) n n1.
-      rewrite proof_irrelevance with (z0 <> x0) n2 n0.
-      generalize dependent z0. generalize dependent x0. 
-    (*   dependent rewrite H2. *)
-    (* - elim IHn2 with n'2... *)
-    (**)
-    (*   apply JM_eq_from_eq. Search (_=_ -> _~=_). *)
-    Admitted.
+ Qed.
 
 
   Lemma answer_to_term_injective :
@@ -412,7 +406,6 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
   Qed.
 
 
-  (* TODO *)
   Lemma redex_to_term_injective :
       forall {k} (r r' : redex k), redex_to_term r = redex_to_term r' -> r = r'.
 
@@ -420,11 +413,21 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
     intros k r r' H.
     destruct r ; dependent destruction r';
     inversion H; subst.
-    dependent destruction v; dependent destruction v0...
-    f_equal; elim lCtx_plug_val_injective with l l0 (vLam v p) (vLam v0 p0); intros; subst...
-    elim lCtx_plug_val_injective with l l0 v v0; intros; subst...
-    elim needy_to_term_injective with n n0; intros; subst...
-  Admitted.
+    - dependent destruction v; dependent destruction v0...
+      f_equal; elim lCtx_plug_val_injective with l l0 (vLam v p) (vLam v0 p0); intros; subst...
+    - dependent destruction v; dependent destruction v0... inversion H.
+    - elim lCtx_plug_val_injective with l l0 v v0; intros; subst...
+    - dependent destruction v; dependent destruction v0... inversion H.
+    - elim needy_to_term_injective with n n0; intros; subst...
+    - dependent destruction v... inversion H.
+    - dependent destruction v; dependent destruction v0... inversion H.
+    - dependent destruction v; dependent destruction v0... inversion H.
+    - dependent destruction v... inversion H.
+    - dependent destruction v; dependent destruction v0... inversion H.
+      elim pure_term_to_term_injective with p p0.
+      + reflexivity.
+      + apply H5.
+  Qed.
 
 
   (* Here comes the actual definition of the grammar of contexts. *)
@@ -472,7 +475,7 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
     | nExpSubstS x' y ny nx => ExpSubstS y ny (subst_needy x' nx s)
 
     | nExpDist x' y z _ nx t => ExpDist (subst_needy x' nx s) y z t
-    | nExpDistS x' y z _ _ ny nx => ExpDistS y ny z (subst_needy x' nx s)
+    (* | nExpDistS x' y z _ _ ny nx => ExpDistS y ny z (subst_needy x' nx s) *)
     end.
 
 
