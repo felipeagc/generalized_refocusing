@@ -245,8 +245,8 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
   | rApp  : lCtx L -> val N -> term -> red N            (* L<v> u *)
   | rSplS : forall x, needy x -> val N -> lCtx L -> red N (* N<<x>>[[x/L<λy.p>]] *)
   | rSpl  : forall x, needy x -> term -> red N          (* N<<x>>[x/t] *)
-  | rLsS  : forall x, needy x -> val N -> red N.         (* N<<x>>[[x//v]] *)
-  (* | rLs   : forall x, needy x -> term -> red N.        (* N<<x>>[x//t] *) *)
+  | rLsS  : forall x, needy x -> val N -> red N         (* N<<x>>[[x//v]] *)
+  | rLs   : forall x, needy x -> val N -> red N.        (* N<<x>>[x//t] *)
 
   (* Daniel: redices for `activations':
       + N<<x>>[x/t]  -> N<<x>>[[x/t]]
@@ -263,7 +263,7 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
       | rSplS x n v s => ExpSubstS x n (lCtx_plug s (val_to_term v))
       | rSpl x n t => ExpSubst (needy_to_term n) x t
       | rLsS x n (vLam v p) => ExpDistS x n v (pure_term_to_term p)
-      (* | rLs x n t => ExpSubst (needy_to_term n) x t *)
+      | rLs x n (vLam v p) => ExpDist (needy_to_term n) x v (pure_term_to_term p)
       end.
 
   Coercion redex_to_term : redex >-> term.
@@ -416,9 +416,12 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
     - dependent destruction v; dependent destruction v0...
       f_equal; elim lCtx_plug_val_injective with l l0 (vLam v p) (vLam v0 p0); intros; subst...
     - dependent destruction v; dependent destruction v0... inversion H.
+    - dependent destruction v; dependent destruction v0... inversion H.
     - elim lCtx_plug_val_injective with l l0 v v0; intros; subst...
     - dependent destruction v; dependent destruction v0... inversion H.
+    - dependent destruction v; dependent destruction v0... inversion H.
     - elim needy_to_term_injective with n n0; intros; subst...
+    - dependent destruction v... inversion H.
     - dependent destruction v... inversion H.
     - dependent destruction v; dependent destruction v0... inversion H.
     - dependent destruction v; dependent destruction v0... inversion H.
@@ -427,6 +430,18 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
       elim pure_term_to_term_injective with p p0.
       + reflexivity.
       + apply H5.
+    - dependent destruction v; dependent destruction v0... inversion H.
+    - dependent destruction v; dependent destruction v0... inversion H.
+    - dependent destruction v; dependent destruction v0... inversion H.
+    - dependent destruction v... inversion H.
+    - dependent destruction v; dependent destruction v0... inversion H.
+    - elim needy_to_term_injective with n n0; intros; subst...
+      + dependent destruction v; dependent destruction v0... inversion H.
+        elim pure_term_to_term_injective with p p0.
+        rewrite <- H0.
+        reflexivity.
+        apply H5.
+      + dependent destruction v; dependent destruction v0... inversion H. reflexivity.
   Qed.
 
 
@@ -486,13 +501,11 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
   Definition contract {k} (r : redex k) : option term :=
       match r with
       | rApp l (vLam x p) u => Some (lCtx_plug l (ExpSubst (pure_term_to_term p) x u))
-      | rLs x nx v => Some (ExpDistS )
-      | rSpl x nx (vLam x' p) l => Some (lCtx_plug l (ExpSubst (pure_term_to_term p) x u))
-
-      (* | rApp (vLam x r) a t => Some (lCtx_plug a (Let x t r))    (* a[λx.r]t -> a[let x = t in r] *) *)
-      (* | rLetS x n v a => Some (lCtx_plug a (Let x (val_to_term v) (subst_needy x n v))) *)
-      (*                         (* let x := a[v] in n[x]  ->  a[let x = v in n[v]]  *) *)
-      (* | rLet x t n => Some (LetS x t n)   (* let x = t in n  ->  let x := t in n  *) *)
+      | rSplS x nx v l => None (* TODO *)
+      | rSpl x nx t => Some (ExpSubstS x nx t)
+      | rLsS x nx (vLam y p) => Some (ExpDist (subst_needy x nx (vLam y p)) x y (pure_term_to_term p))
+      (* | rLsS x nx (vLam y p) => Some (ExpDistS x nx y (pure_term_to_term p)) *)
+      | rLs x nx (vLam y p) => Some (ExpDistS x nx y (pure_term_to_term p))
       end.
 
   (* Having this we include some basic notions *)
