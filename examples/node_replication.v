@@ -5,6 +5,7 @@ Require Import Program.
 Require Import Util.
 Require Import refocusing_semantics.
 Require Import empty_search_order.
+Require Import MSets.
 
 (* Here we define the reduction semantics. *)
 (* The module type PRE_RED_SEM is defined in the file *)
@@ -141,7 +142,7 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
   (* | rtSubstA : forall x, needy_restricted_term x -> restricted_term -> restricted_term (* U[x / U] *) *)
   | rtDist : restricted_term -> var -> linear_cut_val -> restricted_term (* U[x // T] *)
       (* | rtDistA : forall x, needy_restricted_term x -> needy_restricted_term -> linear_cut_val -> restricted_term (* U[x // T] *) *)
-  . 
+  .
 
   (* y ∈ dom(LL) *)
   Fixpoint is_in_dom_ll (ll : llCtx LL) (v : var): Prop :=
@@ -360,7 +361,7 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
     destruct v; destruct s'; discriminate.
     destruct s'. discriminate.
     inversion H. elim IHs with s' x v0...
-    inversion H. 
+    inversion H.
     destruct s'. discriminate.
     inversion H. elim IHs with s' x v1...
     inversion H. elim IHs with s' x v1...
@@ -497,6 +498,44 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
   (* Now we are ready to define the contraction. *)
   (* For the sake of simplicity we do not introduce the fourth (derived) rule *)
 
+  (*
+     Declares a set of nats using Coq.MSets.MSets.
+     Later this should be converted to a set of vars.
+   *)
+  Module S := Make Nat_as_OT.
+
+  Fixpoint fv (p : pure_term) : S.t :=
+    match p with
+    | PVar (Id x) => S.singleton x
+    | PLam (Id x) p => S.remove x (fv p)
+    | PApp p q => S.union (fv p) (fv q)
+    end.
+
+  (* TODO: not implemented *)
+  Definition fresh_var : var := (Id 0).
+
+  Fixpoint concat_l (l1 : lCtx L) (l2 : lCtx L) : lCtx L :=
+    match l1 with
+    | lEmpty => l2
+    | lSubst l1 v t => lSubst (concat_l l1 l2) v t
+    | lDist l1 x y u => lDist (concat_l l1 l2) x y u
+    end.
+
+  Fixpoint f (p : pure_term) (theta : S.t) : (lCtx L * pure_term) :=
+    if S.is_empty (S.inter theta (fv p)) then
+      let x := fresh_var in
+      (lSubst lEmpty x (pure_term_to_term p), PVar x)
+    else match p with
+         | PVar x => (lEmpty, PVar x)
+         | PLam (Id x) p =>
+             let (l, p') := f p (S.add x theta) in
+             (l, PLam (Id x) p')
+         | PApp p q =>
+             let (l1, p') := f p theta in
+             let (l2, q') := f q theta in
+             (concat_l l1 l2, PApp p' q')
+         end.
+
   (* TODO *)
   Definition contract {k} (r : redex k) : option term :=
       match r with
@@ -504,7 +543,6 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
       | rSplS x nx v l => None (* TODO *)
       | rSpl x nx t => Some (ExpSubstS x nx t)
       | rLsS x nx (vLam y p) => Some (ExpDist (subst_needy x nx (vLam y p)) x y (pure_term_to_term p))
-      (* | rLsS x nx (vLam y p) => Some (ExpDistS x nx y (pure_term_to_term p)) *)
       | rLs x nx (vLam y p) => Some (ExpDistS x nx y (pure_term_to_term p))
       end.
 
