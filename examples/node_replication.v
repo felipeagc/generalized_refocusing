@@ -511,9 +511,6 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
     | PApp p q => S.union (fv p) (fv q)
     end.
 
-  (* TODO: not implemented *)
-  Definition fresh_var : var := (Id 0).
-
   Fixpoint concat_l (l1 : lCtx L) (l2 : lCtx L) : lCtx L :=
     match l1 with
     | lEmpty => l2
@@ -521,19 +518,22 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
     | lDist l1 x y u => lDist (concat_l l1 l2) x y u
     end.
 
-  Fixpoint f (p : pure_term) (theta : S.t) : (lCtx L * pure_term) :=
+  Fixpoint f (p : pure_term) (theta : S.t) (v : nat) : lCtx L * pure_term * nat :=
     if S.is_empty (S.inter theta (fv p)) then
-      let x := fresh_var in
-      (lSubst lEmpty x (pure_term_to_term p), PVar x)
+      let x := Id v in
+      (lSubst lEmpty x (pure_term_to_term p), PVar x, v+1)
     else match p with
-         | PVar x => (lEmpty, PVar x)
+         | PVar (Id x) =>
+             let v := (max x v) + 1 in
+             (lEmpty, PVar (Id x), v)
          | PLam (Id x) p =>
-             let (l, p') := f p (S.add x theta) in
-             (l, PLam (Id x) p')
+             let v := (max x v) + 1 in
+             let '(l, p', v) := f p (S.add x theta) v in
+             (l, PLam (Id x) p', v)
          | PApp p q =>
-             let (l1, p') := f p theta in
-             let (l2, q') := f q theta in
-             (concat_l l1 l2, PApp p' q')
+             let '(l1, p', v) := f p theta v in
+             let '(l2, q', v) := f q theta v in
+             (concat_l l1 l2, PApp p' q', v)
          end.
 
   (* TODO *)
