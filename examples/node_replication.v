@@ -518,16 +518,21 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
     | lDist l1 x y u => lDist (concat_l l1 l2) x y u
     end.
 
+  Fixpoint fresh_var (p : pure_term) : nat :=
+    match p with
+    | PVar (Id x) => x
+    | PLam (Id x) p => max (fresh_var p) x
+    | PApp p q => max (fresh_var p) (fresh_var q)
+    end.
+
   Fixpoint f (p : pure_term) (theta : S.t) (v : nat) : lCtx L * pure_term * nat :=
     if S.is_empty (S.inter theta (fv p)) then
       let x := Id v in
       (lSubst lEmpty x (pure_term_to_term p), PVar x, v+1)
     else match p with
-         | PVar (Id x) =>
-             let v := (max x v) + 1 in
-             (lEmpty, PVar (Id x), v)
+         | PVar x =>
+             (lEmpty, PVar x, v)
          | PLam (Id x) p =>
-             let v := (max x v) + 1 in
              let '(l, p', v) := f p (S.add x theta) v in
              (l, PLam (Id x) p', v)
          | PApp p q =>
@@ -540,7 +545,12 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
   Definition contract {k} (r : redex k) : option term :=
       match r with
       | rApp l (vLam x p) u => Some (lCtx_plug l (ExpSubst (pure_term_to_term p) x u))
-      | rSplS x nx v l => None (* TODO *)
+      | rSplS (Id x) nx (vLam y p) l =>
+          (* let z := Id (fresh_var (PLam y p)) in *)
+          (* let p := ExpSubst (Lam y (Var z)) z (pure_term_to_term p) in *)
+          let p := PLam y p in
+          let '(l', p', _) := f p (S.singleton x) ((fresh_var p) + 1) in
+          Some (lCtx_plug l (lCtx_plug l' (ExpDistS (Id x) nx y (pure_term_to_term p'))))
       | rSpl x nx t => Some (ExpSubstS x nx t)
       | rLsS x nx (vLam y p) => Some (ExpDist (subst_needy x nx (vLam y p)) x y (pure_term_to_term p))
       | rLs x nx (vLam y p) => Some (ExpDistS x nx y (pure_term_to_term p))
