@@ -545,12 +545,12 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
   Definition contract {k} (r : redex k) : option term :=
       match r with
       | rApp l (vLam x p) u => Some (lCtx_plug l (ExpSubst (pure_term_to_term p) x u))
-      | rSplS (Id x) nx (vLam y p) l =>
+      | rSplS x nx (vLam (Id y) p) l =>
           (* let z := Id (fresh_var (PLam y p)) in *)
           (* let p := ExpSubst (Lam y (Var z)) z (pure_term_to_term p) in *)
-          let p := PLam y p in
-          let '(l', p', _) := f p (S.singleton x) ((fresh_var p) + 1) in
-          Some (lCtx_plug l (lCtx_plug l' (ExpDistS (Id x) nx y (pure_term_to_term p'))))
+          (* let p := PLam y p in *)
+          let '(l', p', _) := f p (S.singleton y) ((fresh_var p) + 1) in
+          Some (lCtx_plug l (lCtx_plug l' (ExpDistS x nx (Id y) (pure_term_to_term p'))))
       | rSpl x nx t => Some (ExpSubstS x nx t)
       | rLsS x nx (vLam y p) => Some (ExpDist (subst_needy x nx (vLam y p)) x y (pure_term_to_term p))
       | rLs x nx (vLam y p) => Some (ExpDistS x nx y (pure_term_to_term p))
@@ -592,20 +592,27 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
                              exists (v' : value k2), t = v'.
   Proof with auto.
     intros ? ? ec t v H.
-    destruct ec;   dependent destruction v; inversion H;
-    try (dependent destruction a;
-    dependent destruction v; discriminate).
-    destruct n; try discriminate.
-    exists (ansNd x n); inversion H; subst...
-    dependent destruction a; dependent destruction v; try discriminate.
-    injection H1; intros; subst...
-    exists (ansVal (vLam v t1) a)...
-    destruct n; try discriminate.
-    injection H; intros; subst;
-    exists (ansNd _ n0); simpl; auto.
-    destruct n0; try discriminate.
-    inversion H1; subst...
-    exists (ansNd _ n0_1)...
+    destruct ec; dependent destruction v; inversion H.
+    - try (dependent destruction l;
+      dependent destruction v; discriminate).
+    - destruct n; try discriminate.
+      exists (ansNd x n); inversion H; subst...
+    - dependent destruction l; dependent destruction v; try discriminate.
+      injection H1; intros; subst...
+      exists (ansVal (vLam v p) l)...
+    - destruct n; try discriminate.
+      injection H; intros; subst;
+      exists (ansNd _ n0); simpl; auto.
+    - dependent destruction l; dependent destruction v; try discriminate.
+      injection H1; intros; subst...
+      exists (ansVal (vLam v p) l)...
+    - destruct n; try discriminate.
+      injection H; intros; subst;
+      exists (ansNd _ n0); simpl; auto.
+    - dependent destruction l; dependent destruction v; try discriminate.
+    - destruct n0; try discriminate.
+      inversion H1; subst...
+      exists (ansNd _ n0_2)...
   Qed.
 
 
@@ -618,17 +625,38 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
     destruct r; destruct v; intro H; inversion H;
     try (dependent destruction a0;
     dependent destruction v; try discriminate).
-    destruct n; inversion H1; subst;
-    elim ansCtx_plug_needy with a ansCtxEmpty v0 x n...
-    destruct n0; try discriminate; inversion H; intros; subst.
-    elim ansCtx_plug_needy with a ansCtxEmpty v0 _ n0_1...
-    dependent destruction a;
-    inversion H1; intros; subst...
-    dependent destruction v; discriminate.
-    elim ansCtx_plug_needy with a ansCtxEmpty v _ n...
-    destruct n0; try discriminate.
-    inversion H1; subst.
-    elim needy_to_term_injective with n1 n...
+    - dependent destruction l0;
+      inversion H; intros; subst...
+      + dependent destruction v. dependent destruction v0. discriminate.
+    - destruct n; inversion H1; subst;
+      elim lCtx_plug_needy with l lEmpty v0 x n...
+    - dependent destruction l0;
+      inversion H; intros; subst...
+      + dependent destruction v. dependent destruction v0. discriminate.
+    - destruct n0; try discriminate; inversion H; intros; subst.
+      elim lCtx_plug_needy with l lEmpty v0 _ n0_2...
+    - dependent destruction l;
+      inversion H1; intros; subst...
+      + dependent destruction v. discriminate.
+      + elim lCtx_plug_needy with l lEmpty v _ n...
+    - destruct n0; try discriminate.
+      inversion H1; subst.
+      elim needy_to_term_injective with n1 n...
+    - dependent destruction l;
+      inversion H1; intros; subst...
+      + dependent destruction v; dependent destruction v0; discriminate.
+      + dependent destruction v; dependent destruction v1; discriminate.
+      + dependent destruction v; dependent destruction v2; discriminate.
+    - dependent destruction v0; destruct n0; discriminate.
+    - dependent destruction l;
+      inversion H1; intros; subst...
+      + dependent destruction v; dependent destruction v0; discriminate.
+      + dependent destruction v; dependent destruction v1; discriminate.
+      + dependent destruction v2.
+        admit.
+        (* elim lCtx_plug_needy with l lEmpty v _ n... *)
+        (* elim lCtx_plug_needy with l lEmpty v _ n. *)
+    - admit.
   Qed.
 
   (* There are no other potential redices inside a potential redex; *)
