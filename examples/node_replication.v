@@ -652,11 +652,13 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
       inversion H1; intros; subst...
       + dependent destruction v; dependent destruction v0; discriminate.
       + dependent destruction v; dependent destruction v1; discriminate.
-      + dependent destruction v2.
-        admit.
-        (* elim lCtx_plug_needy with l lEmpty v _ n... *)
-        (* elim lCtx_plug_needy with l lEmpty v _ n. *)
-    - admit.
+      + dependent destruction v. dependent destruction v2.
+        inversion H.
+        elim lCtx_plug_needy with l lEmpty (vLam v p) _ n...
+    - dependent destruction v0.
+      destruct n0; try discriminate.
+      inversion H1; subst.
+      elim needy_to_term_injective with n1 n...
   Qed.
 
   (* There are no other potential redices inside a potential redex; *)
@@ -669,10 +671,15 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
     destruct ec; dependent destruction r;
     inversion H;
     subst.
-    exists (ansVal v a)...
-    exists (ansNd _ n)...
-    exists (ansVal v a)...
-  Qed.
+    - exists (ansVal v l)...
+    - dependent destruction v. 
+  Admitted.
+      (* exists (ansNd x n). *)
+    (* - exists (ansVal v l)... *)
+      (* exists (ansNd x n). *)
+    (* - exists (ansNd _ n)... *)
+    (* exists (ansVal v l)... *)
+  (* Qed. *)
 
 End Lam_cbnd_PreRefSem.
 
