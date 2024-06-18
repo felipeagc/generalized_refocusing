@@ -452,37 +452,46 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
     | ExpDistS (Id x) nx (Id y) u => 0 (* TODO *)
     end.
 
-  Fixpoint f (p : term) (theta : S.t) : lCtx N * expr * nat :=
-    let '(p', v) := p in
-    if S.is_empty (S.inter theta (fv p')) then
+  Fixpoint f (p : expr) (v : nat) (theta : S.t) : option (lCtx N * expr * nat) :=
+    if S.is_empty (S.inter theta (fv p)) then
       let x := Id v in
-      (lSubst lEmpty x p', Var x, v+1)
-    else match p' with
+      Some (lSubst lEmpty x p, Var x, v+1)
+    else match p with
          | Var x =>
-             (lEmpty, Var x, v)
+             Some (lEmpty, Var x, v)
          | Lam (Id x) p =>
-             let '(l, p', v) := f (p, v) (S.add x theta) in
-             (l, Lam (Id x) p', v)
+             match f p v (S.add x theta) with
+             | Some (l, p', v) => Some (l, Lam (Id x) p', v)
+             | None => None
+             end
          | App p q =>
-             let '(l1, p', v) := f (p, v) theta in
-             let '(l2, q', v) := f (q, v) theta in
-             (concat_l l1 l2, App p' q', v)
+             match f p v theta with
+             | Some (l1, p', v) =>
+                match f q v theta with
+                | Some (l2, q', v) => Some (concat_l l1 l2, App p' q', v)
+                | None => None
+                end
+             | None => None
+             end
+         | _ => None
          end.
 
   (* TODO *)
   Definition contract {k} (r : redex k) : option term :=
       let '(r, n) := r in
       match r with
-      | rApp l (vLam x p) u => Some (lCtx_plug l (ExpSubst (pure_term_to_term p) x u), n)
+      | rApp l (vLam x p) u => Some (lCtx_plug l (ExpSubst p x u), n)
       | rSplS x nx (vLam (Id y) p) l =>
           (* let z := Id (fresh_var (PLam y p)) in *)
           (* let p := ExpSubst (Lam y (Var z)) z (pure_term_to_term p) in *)
           (* let p := PLam y p in *)
-          let '(l', p', n') := f p (S.singleton y) ((fresh_var p) + 1) in
-          Some (lCtx_plug l (lCtx_plug l' (ExpDistS x nx (Id y) (pure_term_to_term p'))), n')
+          match f p ((fresh_var p) + 1) (S.singleton y) with
+          | Some (l', p', n') => Some (lCtx_plug l (lCtx_plug l' (ExpDistS x nx (Id y) p')), n')
+          | None => None
+          end
       | rSpl x nx t => Some (ExpSubstS x nx t, n)
-      | rLsS x nx (vLam y p) => Some (ExpDist (subst_needy x nx (vLam y p)) x y (pure_term_to_term p), n)
-      | rLs x nx (vLam y p) => Some (ExpDistS x nx y (pure_term_to_term p), n)
+      | rLsS x nx (vLam y p) => Some (ExpDist (subst_needy x nx (vLam y p)) x y p, n)
+      | rLs x nx (vLam y p) => Some (ExpDistS x nx y p, n)
       end.
 
   (* Having this we include some basic notions *)
