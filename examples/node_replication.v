@@ -41,8 +41,12 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
 
   (* Weak call-by-need is a uniform strategy, so one context kind E is enough. *)
 
-  Inductive ck := L | LL | N.
-  Definition ckind := ck.
+  Inductive ck := N.
+
+  Inductive ckvar : Type :=
+  | ckv : ck -> var -> ckvar.
+
+  Definition ckind := ckvar.
   Hint Unfold  ckind.
 
   (* Here we define the language of interest: lambda-let calculus.  *)
@@ -80,119 +84,37 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
     | nExpDist  : forall x y z : var,                               (* n_x[y // λz.u] *)
         x <> y -> needy x -> expr -> needy x.
 
-  Definition term := expr.
-  Hint Unfold term.
-
   Notation " t @ s " := (App t s) (at level 40).
   Notation " # x " := (Var x) (at level 7).
   Notation " t [ x / u ] " := (ExpSubst x u t) (at level 45).
   Notation " t [ x '//' 'λ' y , u ] " := (ExpDist x y u t) (at level 46).
   Notation " 'λ'  x , t " := (Lam x t) (at level 50).
 
+  Definition term := expr.
+  Hint Unfold term.
 
 
-  Inductive pure_term :=
-  | PVar : var -> pure_term                        (* variable *)
-  | PLam : var -> pure_term -> pure_term           (* lambda abstraction *)
-  | PApp : pure_term -> pure_term -> pure_term.    (* application *)
+  (* L - Lists context *)
+  Inductive ansCtx : ckind -> Type :=
+  | ansCtxEmpty : forall {k}, ansCtx k                                  (* <> *)
+  | ansCtxSubst : forall {k}, ansCtx k -> var -> term -> ansCtx k         (* L[x / u] *)
+  | ansCtxDist  : forall {k}, ansCtx k -> var -> var -> term -> ansCtx k. (* L[x // λy.u] *)
 
-  Fixpoint pure_term_to_term (p : pure_term) : term :=
-      match p with
-      | PVar x => Var x
-      | PLam x t => Lam x (pure_term_to_term t)
-      | PApp t s => App (pure_term_to_term t) (pure_term_to_term s)
-      end.
 
   (* v *)
   Inductive val : ckind -> Type :=
-  | vLam : var -> pure_term -> val N.
+  | vLam : forall {k}, var -> term -> val k.
 
-  Fixpoint val_to_term {k} (v : val k) : term :=
+  Definition val_to_term {k} (v : val k) : term :=
       match v with
-      | vLam x t => Lam x (pure_term_to_term t)
+      | vLam x t => Lam x t
       end.
 
   Coercion val_to_term : val >-> term.
 
-
-
-  (* L - Lists context *)
-  Inductive lCtx : ckind -> Type :=
-  | lEmpty : lCtx L                             (* <> *)
-  | lSubst : lCtx L -> var -> term -> lCtx L    (* L[x / u] *)
-  | lDist  : lCtx L -> var -> var -> term -> lCtx L.  (* L[x // λy.u] *)
-
-  (* T - Linear Cut Values *)
-  Inductive linear_cut_val : Type :=
-  | lcLam : var -> llCtx LL -> pure_term -> linear_cut_val (* λx.LL<p> *)
-  with
-    (* LL - Commutative lists context *)
-    llCtx : ckind -> Type :=
-    | llEmpty : llCtx LL                                 (* <> *)
-    | llSubst : llCtx LL -> var -> pure_term -> llCtx LL (* LL[x / p] *)
-    | llDist  : llCtx LL -> var -> linear_cut_val -> llCtx LL.  (* LL[x // T] *)
-
-  (* U - Restricted terms *)
-  (* maybe we're gonna need a needy variation like expr *)
-  Inductive restricted_term : Type :=
-  | rtVar : var -> restricted_term (* x *)
-  | rtVal : val N -> restricted_term (* v *)
-  | rtApp : restricted_term -> restricted_term -> restricted_term  (* UU *)
-  | rtSubst : restricted_term -> var -> restricted_term -> restricted_term (* U[x / U] *)
-  (* | rtSubstA : forall x, needy_restricted_term x -> restricted_term -> restricted_term (* U[x / U] *) *)
-  | rtDist : restricted_term -> var -> linear_cut_val -> restricted_term (* U[x // T] *)
-      (* | rtDistA : forall x, needy_restricted_term x -> needy_restricted_term -> linear_cut_val -> restricted_term (* U[x // T] *) *)
-  .
-
-  (* y ∈ dom(LL) *)
-  Fixpoint is_in_dom_ll (ll : llCtx LL) (v : var): Prop :=
-    match ll with
-    | llEmpty => False
-    | llSubst l v' _ => if eq_var v v' then True else is_in_dom_ll l v
-    | llDist l v' _ => if eq_var v v' then True else is_in_dom_ll l v
-    end.
-
-  (* v ∈ fv(p) *)
-  Fixpoint p_has_free_occurrence (p : pure_term) (v : var) : Prop :=
-    match p with
-    | PVar v' => if eq_var v v' then True else False
-    | PLam v' p' => (if eq_var v v' then False else p_has_free_occurrence p' v)
-    | PApp p1 p2 => (p_has_free_occurrence p1 v) /\ (p_has_free_occurrence p2 v)
-    end.
-
-  (* v ∈ fv(LL) *)
-  Fixpoint ll_has_free_occurrence (ll : llCtx LL) (v : var) : Prop :=
-    match ll with
-    | llEmpty => False
-    | llSubst l x p => (if eq_var x v then False else ll_has_free_occurrence l v) \/
-                            p_has_free_occurrence p v
-    | llDist l x t => (if eq_var x v then False else ll_has_free_occurrence l v) \/
-                            t_has_free_occurrence t v
-    end
-  with
-    (* v ∈ fv(T) *)
-    t_has_free_occurrence (t : linear_cut_val) (v : var) : Prop :=
-      match t with
-      | lcLam x ll p => if eq_var x v then False else ll_has_free_occurrence ll v
-      end.
-
-  (* Check property: T := λx.LL<p> where y ∈ dom(LL) ⇒ y ∈ fv(p) *)
-  Definition t_is_good (t : linear_cut_val): Prop :=
-    match t with
-    | lcLam x ll p => forall y : var, is_in_dom_ll ll y -> p_has_free_occurrence p y
-    end.
-
-  (* Check property: LL := LL[x//T] where x ∉ fv(LL) *)
-  Definition ll_is_good (ll : llCtx LL): Prop :=
-    match ll with
-    | llDist ll' x t => not (ll_has_free_occurrence ll' x)
-    | _ => True
-    end.
-
-
   Inductive answer : ckind -> Type :=
-  | ansVal : val N -> lCtx L -> answer N
-  | ansNd : forall x, needy x -> answer N.
+  | ansVal : forall {k}, val k -> ansCtx k -> answer k
+  | ansNd : forall {k} x, needy x -> answer k.
 
   (* It should be made clear here that the values in this *)
   (* implementation of refocusing are not the same as values in the Danvy *)
@@ -212,11 +134,11 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
   Hint Unfold value.
 
   (* A function for plugging a term to an answer context *)
-  Fixpoint lCtx_plug {L} (s : lCtx L) (t : term) :=
+  Fixpoint ansCtx_plug {k} (s : ansCtx k) (t : term) :=
   match s with
-  | lEmpty => t
-  | lSubst s' x r => ExpSubst (lCtx_plug s' t) x r
-  | lDist s' x y r => ExpDist (lCtx_plug s' t) x y r
+  | ansCtxEmpty => t
+  | ansCtxSubst s' x r => ExpSubst (ansCtx_plug s' t) x r
+  | ansCtxDist s' x y r => ExpDist (ansCtx_plug s' t) x y r
   end.
 
 
@@ -233,7 +155,7 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
 
   Fixpoint answer_to_term {k} (a : answer k) : term :=
   match a with
-  | ansVal v s => lCtx_plug s v
+  | ansVal v s => ansCtx_plug s v
   | ansNd _ n   => needy_to_term n
   end.
 
@@ -243,11 +165,11 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
   (* Here we define the set of potential redices. *)
   (* Actually, they are just redices as defined in the paper *)
   Inductive red : ckind -> Type :=
-  | rApp  : lCtx L -> val N -> term -> red N            (* L<v> u *)
-  | rSplS : forall x, needy x -> val N -> lCtx L -> red N (* N<<x>>[[x/L<λy.p>]] *)
-  | rSpl  : forall x, needy x -> term -> red N          (* N<<x>>[x/t] *)
-  | rLsS  : forall x, needy x -> val N -> red N         (* N<<x>>[[x//v]] *)
-  | rLs   : forall x, needy x -> val N -> red N.        (* N<<x>>[x//t] *)
+  | rApp  : forall {k}, ansCtx k -> val k -> term -> red k        (* L<v> u *)
+  | rSplS : forall {k} x, needy x -> val k -> ansCtx k -> red k   (* N<<x>>[[x/L<λy.p>]] *)
+  | rSpl  : forall {k} x, needy x -> term -> red k                (* N<<x>>[x/t] *)
+  | rLsS  : forall {k} x, needy x -> val k -> red k               (* N<<x>>[[x//v]] *)
+  | rLs   : forall {k} x, needy x -> val k -> red k.              (* N<<x>>[x//t] *)
 
   (* Daniel: redices for `activations':
       + N<<x>>[x/t]  -> N<<x>>[[x/t]]
@@ -260,75 +182,43 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
 
   Definition redex_to_term {k} (r : redex k) : term :=
       match r with
-      | rApp l v t => App (lCtx_plug l v) t
-      | rSplS x n v s => ExpSubstS x n (lCtx_plug s (val_to_term v))
+      | rApp l v t => App (ansCtx_plug l v) t
+      | rSplS x n v s => ExpSubstS x n (ansCtx_plug s (val_to_term v))
       | rSpl x n t => ExpSubst (needy_to_term n) x t
-      | rLsS x n (vLam v p) => ExpDistS x n v (pure_term_to_term p)
-      | rLs x n (vLam v p) => ExpDist (needy_to_term n) x v (pure_term_to_term p)
+      | rLsS x n (vLam v t) => ExpDistS x n v t
+      | rLs x n (vLam v t) => ExpDist (needy_to_term n) x v t
       end.
 
   Coercion redex_to_term : redex >-> term.
 
-
   (* This again is a required axiom in the signature of RED_SEM module *)
-  Lemma pure_term_to_term_injective :
-      forall (v v' : pure_term), pure_term_to_term v = pure_term_to_term v' -> v = v'.
-  Proof with auto.
-    induction v. intros. destruct v'. inversion H...
-    inversion H...
-    inversion H...
-
-    dependent destruction v'.
-    intros. inversion H.
-    intros. inversion H.
-    apply IHv in H2.
-    rewrite H2. reflexivity.
-
-    intros. inversion H.
-
-    dependent destruction v'.
-    intros. inversion H.
-    intros. inversion H.
-
-    intros. inversion H.
-    apply IHv1 in H1. apply IHv2 in H2.
-    rewrite H1. rewrite H2.
+  Lemma val_to_term_injective :
+      forall {k} (v v' : val k), val_to_term v = val_to_term v' -> v = v'.
+  Proof with eauto.
+    destruct v. intros. dependent destruction v'. inversion H.
     reflexivity.
   Qed.
 
-  Lemma val_to_term_injective :
-      forall {k} (v v' : val k), val_to_term v = val_to_term v' -> v = v'.
-  Proof with auto.
-    destruct v. intros.
-    dependent destruction v'.  inversion H.
-    apply pure_term_to_term_injective in H2.
-    rewrite H2. reflexivity.
-  Qed.
 
-
-  Lemma lCtx_plug_val_injective :
-    forall {k} (s s' : lCtx k) (v v' : val N),
-    lCtx_plug s v = lCtx_plug s' v' -> s = s' /\ v = v'.
+  Lemma ansCtx_plug_val_injective :
+    forall {k} (s s' : ansCtx k) (v v' : val k),
+    ansCtx_plug s v = ansCtx_plug s' v' -> s = s' /\ v = v'.
   Proof with auto.
     intros k s s' v v' H.
-    induction s; dependent destruction s'; inversion H...
+    induction s; dependent destruction s'; inversion H.
     destruct v; dependent destruction v'; inversion H1...
-    apply pure_term_to_term_injective in H3; rewrite H3; auto.
-
-    destruct v0; dependent destruction s'; inversion H...
-    destruct v1; dependent destruction s'; inversion H...
-
+    destruct v0; dependent destruction s'; inversion H1...
+    destruct v1; dependent destruction s'; inversion H1...
+    destruct v; dependent destruction v'; inversion H1...
+    split; f_equal; elim IHs with s' v1 v'...
     dependent destruction s; destruct v'; inversion H1; split...
-    split; f_equal; elim IHs with s'...
-
-    dependent destruction s; destruct v'; inversion H1; split...
-    split; f_equal; elim IHs with s'...
+    split; f_equal; elim IHs with s' v3 v'...
   Qed.
 
 
-  Lemma lCtx_plug_var_injective :
-    forall {k} (s s' : lCtx k) x x',
-    lCtx_plug s (Var x) = lCtx_plug s' (Var x') -> s = s' /\ x = x'.
+  Lemma ansCtx_plug_var_injective :
+    forall {k} (s s' : ansCtx k) x x',
+    ansCtx_plug s (Var x) = ansCtx_plug s' (Var x') -> s = s' /\ x = x'.
   Proof with auto.
     intros k s s' x x' H.
     induction s; dependent destruction s'; inversion H...
@@ -337,25 +227,25 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
   Qed.
 
 
-  Lemma lCtx_plug_needy :
-    forall {k} (s s' : lCtx k) (v : val N) {x} (n : needy x),
-    lCtx_plug s v = lCtx_plug s' n -> False.
+  Lemma ansCtx_plug_needy :
+    forall {k} (s s' : ansCtx k) (v : val k) {x} (n : needy x),
+    ansCtx_plug s v = ansCtx_plug s' n -> False.
   Proof with auto.
     induction s; simpl; intros.
     destruct v; destruct s'; destruct n; discriminate.
     destruct s'. destruct n; simpl in *; try discriminate.
-    inversion H; elim IHs with lEmpty v0 x n0...
+    inversion H; elim IHs with ansCtxEmpty v0 x n0...
     inversion H; elim (IHs _ _ _ _ H1).
     inversion H.
     destruct s'. destruct n; simpl in *; try discriminate.
-    inversion H. elim IHs with lEmpty v1 x n0...
+    inversion H. elim IHs with ansCtxEmpty v1 x n0...
     inversion H; elim (IHs _ _ _ _ H1).
     inversion H; elim (IHs _ _ _ _ H1).
   Qed.
 
-  Lemma lCtx_plug_var :
-    forall {k} (s s' : lCtx k) x (v : val N),
-    lCtx_plug s v = lCtx_plug s' (Var x) -> False.
+  Lemma ansCtx_plug_var :
+    forall {k} (s s' : ansCtx k) x (v : val k),
+    ansCtx_plug s v = ansCtx_plug s' (Var x) -> False.
   Proof with auto.
     induction s; simpl; intros.
     destruct v; destruct s'; discriminate.
@@ -388,9 +278,9 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
     answer_to_term a = answer_to_term a' -> a = a'.
   Proof with auto.
     destruct a; dependent destruction  a'; intros...
-    f_equal; elim lCtx_plug_val_injective with l l0 v v0...
-    elim lCtx_plug_needy with l lEmpty v _ n...
-    elim lCtx_plug_needy with l lEmpty v _ n...
+    f_equal; elim ansCtx_plug_val_injective with a a0 v v0...
+    elim ansCtx_plug_needy with a ansCtxEmpty v _ n...
+    elim ansCtx_plug_needy with a ansCtxEmpty v _ n...
     inversion H.
     elim needy_to_term_injective with n n0; intros; subst...
     rewrite H0...
@@ -415,10 +305,10 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
     destruct r ; dependent destruction r';
     inversion H; subst.
     - dependent destruction v; dependent destruction v0...
-      f_equal; elim lCtx_plug_val_injective with l l0 (vLam v p) (vLam v0 p0); intros; subst...
+      f_equal; elim ansCtx_plug_val_injective with l l0 (vLam v p) (vLam v0 p0); intros; subst...
     - dependent destruction v; dependent destruction v0... inversion H.
     - dependent destruction v; dependent destruction v0... inversion H.
-    - elim lCtx_plug_val_injective with l l0 v v0; intros; subst...
+    - elim ansCtx_plug_val_injective with l l0 v v0; intros; subst...
     - dependent destruction v; dependent destruction v0... inversion H.
     - dependent destruction v; dependent destruction v0... inversion H.
     - elim needy_to_term_injective with n n0; intros; subst...
@@ -511,11 +401,11 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
     | PApp p q => S.union (fv p) (fv q)
     end.
 
-  Fixpoint concat_l (l1 : lCtx L) (l2 : lCtx L) : lCtx L :=
+  Fixpoint concat_l {k} (l1 : ansCtx k) (l2 : ansCtx k) : ansCtx k :=
     match l1 with
-    | lEmpty => l2
-    | lSubst l1 v t => lSubst (concat_l l1 l2) v t
-    | lDist l1 x y u => lDist (concat_l l1 l2) x y u
+    | ansEmpty => l2
+    | ansSubst l1 v t => ansSubst (concat_l l1 l2) v t
+    | ansDist l1 x y u => ansDist (concat_l l1 l2) x y u
     end.
 
   Fixpoint fresh_var (p : pure_term) : nat :=
