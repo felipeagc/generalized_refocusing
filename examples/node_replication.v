@@ -153,7 +153,7 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
   end.
 
 
-  Fixpoint answer_to_term {k} (a : answer k) : term :=
+  Definition answer_to_term {k} (a : answer k) : term :=
   match a with
   | ansVal v s => ansCtx_plug s v
   | ansNd _ n   => needy_to_term n
@@ -165,11 +165,11 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
   (* Here we define the set of potential redices. *)
   (* Actually, they are just redices as defined in the paper *)
   Inductive red : ckind -> Type :=
-  | rApp  : forall {k}, ansCtx k -> val k -> term -> red k        (* L<v> u *)
-  | rSplS : forall {k} x, needy x -> val k -> ansCtx k -> red k   (* N<<x>>[[x/L<λy.p>]] *)
-  | rSpl  : forall {k} x, needy x -> term -> red k                (* N<<x>>[x/t] *)
-  | rLsS  : forall {k} x, needy x -> val k -> red k               (* N<<x>>[[x//v]] *)
-  | rLs   : forall {k} x, needy x -> val k -> red k.              (* N<<x>>[x//t] *)
+  | rApp  : forall {k} {n:nat}, ansCtx k -> val k -> term -> red k        (* L<v> u *)
+  | rSplS : forall {k} (n:nat) x, needy x -> val k -> ansCtx k -> red k   (* N<<x>>[[x/L<λy.p>]] *)
+  | rSpl  : forall {k} {n:nat} x, needy x -> term -> red k                (* N<<x>>[x/t] *)
+  | rLsS  : forall {k} {n:nat} x, needy x -> val k -> red k               (* N<<x>>[[x//v]] *)
+  | rLs   : forall {k} {n:nat} x, needy x -> val k -> red k.              (* N<<x>>[x//t] *)
 
   (* Daniel: redices for `activations':
       + N<<x>>[x/t]  -> N<<x>>[[x/t]]
@@ -183,7 +183,7 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
   Definition redex_to_term {k} (r : redex k) : term :=
       match r with
       | rApp l v t => App (ansCtx_plug l v) t
-      | rSplS x n v s => ExpSubstS x n (ansCtx_plug s (val_to_term v))
+      | rSplS _ x n v s => ExpSubstS x n (ansCtx_plug s (val_to_term v))
       | rSpl x n t => ExpSubst (needy_to_term n) x t
       | rLsS x n (vLam v t) => ExpDistS x n v t
       | rLs x n (vLam v t) => ExpDist (needy_to_term n) x v t
@@ -278,12 +278,12 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
     answer_to_term a = answer_to_term a' -> a = a'.
   Proof with auto.
     destruct a; dependent destruction  a'; intros...
-    f_equal; elim ansCtx_plug_val_injective with a a0 v v0...
-    elim ansCtx_plug_needy with a ansCtxEmpty v _ n...
-    elim ansCtx_plug_needy with a ansCtxEmpty v _ n...
-    inversion H.
-    elim needy_to_term_injective with n n0; intros; subst...
-    rewrite H0...
+    - f_equal; elim ansCtx_plug_val_injective with a a0 v v0...
+    - elim ansCtx_plug_needy with a ansCtxEmpty v _ n...
+    - elim ansCtx_plug_needy with a ansCtxEmpty v _ n...
+    - inversion H.
+      elim needy_to_term_injective with n n0; intros; subst...
+      rewrite H0...
   Qed.
 
 
@@ -302,13 +302,13 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
 
   Proof with auto.
     intros k r r' H.
-    destruct r ; dependent destruction r';
+    destruct r; dependent destruction r';
     inversion H; subst.
     - dependent destruction v; dependent destruction v0...
-      f_equal; elim ansCtx_plug_val_injective with l l0 (vLam v p) (vLam v0 p0); intros; subst...
+      f_equal; elim ansCtx_plug_val_injective with a a0 (vLam v t) (vLam v0 t0); intros; subst...
     - dependent destruction v; dependent destruction v0... inversion H.
     - dependent destruction v; dependent destruction v0... inversion H.
-    - elim ansCtx_plug_val_injective with l l0 v v0; intros; subst...
+    - elim ansCtx_plug_val_injective with a a0 v v0; intros; subst...
     - dependent destruction v; dependent destruction v0... inversion H.
     - dependent destruction v; dependent destruction v0... inversion H.
     - elim needy_to_term_injective with n n0; intros; subst...
@@ -318,9 +318,7 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
     - dependent destruction v; dependent destruction v0... inversion H.
     - dependent destruction v... inversion H.
     - dependent destruction v; dependent destruction v0... inversion H.
-      elim pure_term_to_term_injective with p p0.
-      + reflexivity.
-      + apply H5.
+      reflexivity.
     - dependent destruction v; dependent destruction v0... inversion H.
     - dependent destruction v; dependent destruction v0... inversion H.
     - dependent destruction v; dependent destruction v0... inversion H.
@@ -328,10 +326,8 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
     - dependent destruction v; dependent destruction v0... inversion H.
     - elim needy_to_term_injective with n n0; intros; subst...
       + dependent destruction v; dependent destruction v0... inversion H.
-        elim pure_term_to_term_injective with p p0.
         rewrite <- H0.
         reflexivity.
-        apply H5.
       + dependent destruction v; dependent destruction v0... inversion H. reflexivity.
   Qed.
 
@@ -346,25 +342,25 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
 
 
   (* N *)
-  Inductive nck : ckind -> ckind -> Type :=
-  | nckApp : term -> nck N N                           (* N -> N t *)
-  | nckSubst : var -> term -> nck N N                  (* N -> N[x / t] *)
-  | nckDist : var -> var -> term -> nck N N            (* N -> N[x // λy.u] *)
-  | nckPlugSubst : forall x, needy x -> nck N N.       (* N -> N<<x>>[x/N] *)
+  Inductive eck : ckind -> ckind -> Type :=
+  | eckApp : forall {m n}, term -> eck (ckv N m) (ckv N n)                   (* N -> N t *)
+  | eckSubst : forall {m n}, var -> term -> eck (ckv N m) (ckv N n)          (* N -> N[x / t] *)
+  | eckDist : forall {m n}, var -> var -> term -> eck (ckv N m) (ckv N n)    (* N -> N[x // λy.u] *)
+  | eckPlugSubst : forall {m n} x, needy x -> eck (ckv N m) (ckv N n).       (* N -> N<<x>>[x/N] *)
 
-  Definition elem_context_kinded : ckind -> ckind -> Type := nck.
+  Definition elem_context_kinded := eck.
   Hint Unfold elem_context_kinded.
 
   (* The starting symbol in the grammar *)
-  Definition init_ckind : ckind     :=  N.
+  Definition init_ckind : ckind     :=  ckv N (Id 0).
 
   (* The function for plugging a term into an elementary context *)
   Definition elem_plug {k1 k2} (t : term) (ec : elem_context_kinded k1 k2) : term :=
       match ec with
-      | nckApp t' => App t t'
-      | nckSubst x s => ExpSubst t x s
-      | nckDist x y u => ExpDist t x y u
-      | nckPlugSubst x n => ExpSubstS x n t
+      | eckApp t' => App t t'
+      | eckSubst x s => ExpSubst t x s
+      | eckDist x y u => ExpDist t x y u
+      | eckPlugSubst x n => ExpSubstS x n t
       end.
 
 
@@ -394,11 +390,21 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
    *)
   Module S := Make Nat_as_OT.
 
-  Fixpoint fv (p : pure_term) : S.t :=
-    match p with
-    | PVar (Id x) => S.singleton x
-    | PLam (Id x) p => S.remove x (fv p)
-    | PApp p q => S.union (fv p) (fv q)
+  Fixpoint fvn {x} (t : needy x) : S.t :=
+    match t with
+    | nVar (Id x) => S.singleton x
+    | nApp _ p q => S.union (fvn p) (fv q)
+    | nExpSubst x y _ t u => S.union (fv t) (S.remove x (fv u))
+    | nExpSubstS x y nx ny => (* TODO *)
+    end
+  with fv (t : term) : S.t :=
+    match t with
+    | Var (Id x) => S.singleton x
+    | Lam (Id x) p => S.remove x (fv p)
+    | App p q => S.union (fv p) (fv q)
+    | ExpSubst t x u => S.union (fv t) (S.remove x (fv u))
+    | ExpSubstS x nx u => S.union (fvn nx) (S.remove x (fv u))
+    (* TODO: definir fv para todos os termos *)
     end.
 
   Fixpoint concat_l {k} (l1 : ansCtx k) (l2 : ansCtx k) : ansCtx k :=
