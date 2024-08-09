@@ -319,8 +319,6 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
     inversion H; subst.
     - dependent destruction v; dependent destruction v0...
       f_equal; elim ansCtx_plug_val_injective with a a0 (vLam v t) (vLam v0 t0); intros; subst...
-    - dependent destruction v; dependent destruction v0...
-      f_equal; elim ansCtx_plug_val_injective with a a0 (vLam v t) (vLam v0 t0); intros; subst...
     - dependent destruction v; dependent destruction v0... inversion H.
     - dependent destruction v; dependent destruction v0... inversion H.
     - elim ansCtx_plug_val_injective with a a0 v v0; intros; subst...
@@ -392,7 +390,6 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
     | nExpSubstS x' y ny nx => ExpSubstS y ny (subst_needy x' nx s)
 
     | nExpDist x' y z _ nx t => ExpDist (subst_needy x' nx s) y z t
-    (* | nExpDistS x' y z _ _ ny nx => ExpDistS y ny z (subst_needy x' nx s) *)
     end.
 
 
@@ -409,24 +406,26 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
     match t with
     | nVar (Id x) => S.singleton x
     | nApp _ p q => S.union (fvn p) (fv q)
-    | nExpSubst x y _ t u => S.union (fv t) (S.remove x (fv u))
-    | nExpSubstS x y nx ny => (* TODO *)
+    | nExpSubst (Id x) (Id y) _ nx u => S.union (S.remove y (fvn nx)) (fv u)
+    | nExpSubstS (Id x) (Id y) nx ny => S.union (S.remove y (fvn ny)) (fvn nx)
+    | nExpDist (Id x) (Id y) (Id z) _ nx u => S.union (S.remove y (fvn nx)) (S.remove z (fv u))
     end
   with fv (t : term) : S.t :=
     match t with
     | Var (Id x) => S.singleton x
     | Lam (Id x) p => S.remove x (fv p)
     | App p q => S.union (fv p) (fv q)
-    | ExpSubst t x u => S.union (fv t) (S.remove x (fv u))
-    | ExpSubstS x nx u => S.union (fvn nx) (S.remove x (fv u))
-    (* TODO: definir fv para todos os termos *)
+    | ExpSubst t (Id x) u => S.union (S.remove x (fv t)) (fv u)
+    | ExpSubstS (Id x) nx u => S.union (S.remove x (fvn nx)) (fv u)
+    | ExpDist t (Id x) (Id y) u => S.union (S.remove x (fv t)) (S.remove y (fv u))
+    | ExpDistS (Id x) nx (Id y) u => S.union (S.remove x (fvn nx)) (S.remove y (fv u))
     end.
 
   Fixpoint concat_l {k} (l1 : ansCtx k) (l2 : ansCtx k) : ansCtx k :=
     match l1 with
-    | ansEmpty => l2
-    | ansSubst l1 v t => ansSubst (concat_l l1 l2) v t
-    | ansDist l1 x y u => ansDist (concat_l l1 l2) x y u
+    | ansCtxEmpty => l2
+    | ansCtxSubst l1 v t => ansCtxSubst (concat_l l1 l2) v t
+    | ansCtxDist l1 x y u => ansCtxDist (concat_l l1 l2) x y u
     end.
 
   Fixpoint fresh_var (p : pure_term) : nat :=
