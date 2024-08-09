@@ -164,12 +164,25 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
 
   (* Here we define the set of potential redices. *)
   (* Actually, they are just redices as defined in the paper *)
-  Inductive red : ckind -> Type :=
-  | rApp  : forall {k} {n:nat}, ansCtx k -> val k -> term -> red k        (* L<v> u *)
-  | rSplS : forall {k} (n:nat) x, needy x -> val k -> ansCtx k -> red k   (* N<<x>>[[x/L<λy.p>]] *)
-  | rSpl  : forall {k} {n:nat} x, needy x -> term -> red k                (* N<<x>>[x/t] *)
-  | rLsS  : forall {k} {n:nat} x, needy x -> val k -> red k               (* N<<x>>[[x//v]] *)
-  | rLs   : forall {k} {n:nat} x, needy x -> val k -> red k.              (* N<<x>>[x//t] *)
+  (* Inductive red : ckind -> Type := *)
+  (* | rApp  : forall {k} {n:nat}, ansCtx k -> val k -> term -> red k        (1* L<v> u *1) *)
+  (* | rSplS : forall {k} (n:nat) x, needy x -> val k -> ansCtx k -> red k   (1* N<<x>>[[x/L<λy.p>]] *1) *)
+  (* | rSpl  : forall {k} {n:nat} x, needy x -> term -> red k                (1* N<<x>>[x/t] *1) *)
+  (* | rLsS  : forall {k} {n:nat} x, needy x -> val k -> red k               (1* N<<x>>[[x//v]] *1) *)
+  (* | rLs   : forall {k} {n:nat} x, needy x -> val k -> red k.              (1* N<<x>>[x//t] *1) *)
+
+
+
+
+(* Here we define the set of potential redices. *)
+ (* Actually, they are just redices as defined in the paper *)
+ Inductive red : ckind -> Type :=
+ | rApp  : forall {k} {z:var}, ansCtx (ckv k z) -> val (ckv k z) -> term -> red (ckv k z)        (* L<v> u *)
+ | rSplS : forall {k} (z:var) x, needy x -> val (ckv k z) -> ansCtx (ckv k z) -> red (ckv k z)   (* N<<x>>[[x/L<λy.p>]] *)
+ | rSpl  : forall {k} {z:var} x, needy x -> term -> red (ckv k z)                                (* N<<x>>[x/t] *)
+ | rLsS  : forall {k} {z:var} x, needy x -> val (ckv k z) -> red (ckv k z)                       (* N<<x>>[[x//v]] *)
+ | rLs   : forall {k} {z:var} x, needy x -> val (ckv k z) -> red (ckv k z).                      (* N<<x>>[x//t] *)
+ (* TODO  check "val k" vs. "val (ckv k z)". the same for ansCtx *)
 
   (* Daniel: redices for `activations':
       + N<<x>>[x/t]  -> N<<x>>[[x/t]]
@@ -304,6 +317,8 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
     intros k r r' H.
     destruct r; dependent destruction r';
     inversion H; subst.
+    - dependent destruction v; dependent destruction v0...
+      f_equal; elim ansCtx_plug_val_injective with a a0 (vLam v t) (vLam v0 t0); intros; subst...
     - dependent destruction v; dependent destruction v0...
       f_equal; elim ansCtx_plug_val_injective with a a0 (vLam v t) (vLam v0 t0); intros; subst...
     - dependent destruction v; dependent destruction v0... inversion H.
