@@ -7,6 +7,9 @@ Require Import refocusing_semantics.
 Require Import empty_search_order.
 Require Import MSets.
 
+Require Import ListSet.
+Require Import Sets.
+
 (* Here we define the reduction semantics. *)
 (* The module type PRE_RED_SEM is defined in the file *)
 (*     reduction_semantics/reduction_semantics.v *)
@@ -421,46 +424,50 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
     | ExpDistS (Id x) nx (Id y) u => S.union (S.remove x (fvn nx)) (S.remove y (fv u))
     end.
 
-  Fixpoint concat_l {k} (l1 : ansCtx k) (l2 : ansCtx k) : ansCtx k :=
+  Fixpoint concat_l {k v1 v2} (l1 : ansCtx (ckv k v1)) (l2 : ansCtx (ckv k v2)) : ansCtx (ckv k v2) :=
     match l1 with
     | ansCtxEmpty => l2
     | ansCtxSubst l1 v t => ansCtxSubst (concat_l l1 l2) v t
     | ansCtxDist l1 x y u => ansCtxDist (concat_l l1 l2) x y u
     end.
 
-  Fixpoint fresh_var (p : pure_term) : nat :=
-    match p with
-    | PVar (Id x) => x
-    | PLam (Id x) p => max (fresh_var p) x
-    | PApp p q => max (fresh_var p) (fresh_var q)
+  Fixpoint fresh_var (t : term) : nat :=
+    match t with
+    | Var (Id x) => x
+    | Lam (Id x) p => max (fresh_var t) x
+    | App p q => max (fresh_var p) (fresh_var q)
+    | ExpSubst p (Id x) u => (* TODO *)
+    | ExpSubstS (Id x) nx u => (* TODO *)
+    | ExpDist p (Id x) (Id y) u => (* TODO *)
+    | ExpDistS (Id x) nx (Id y) u => (* TODO *)
     end.
 
-  Fixpoint f (p : pure_term) (theta : S.t) (v : nat) : lCtx L * pure_term * nat :=
-    if S.is_empty (S.inter theta (fv p)) then
+  Fixpoint f {k} (t : term) (theta : S.t) (v : nat) : ansCtx k * term * nat :=
+    if S.is_empty (S.inter theta (fv t)) then
       let x := Id v in
-      (lSubst lEmpty x (pure_term_to_term p), PVar x, v+1)
-    else match p with
-         | PVar x =>
-             (lEmpty, PVar x, v)
-         | PLam (Id x) p =>
-             let '(l, p', v) := f p (S.add x theta) v in
-             (l, PLam (Id x) p', v)
-         | PApp p q =>
+      (ansCtxSubst lEmpty x t, PVar x, v+1)
+    else match t with
+         | Var x =>
+             (ansCtxEmpty, PVar x, v)
+         | Lam (Id x) t =>
+             let '(l, t', v) := f t (S.add x theta) v in
+             (l, Lam (Id x) t', v)
+         | App p q =>
              let '(l1, p', v) := f p theta v in
              let '(l2, q', v) := f q theta v in
-             (concat_l l1 l2, PApp p' q', v)
+             (concat_l l1 l2, App p' q', v)
+         | ExpSubst p (Id x) u => (* TODO *)
+         | ExpSubstS (Id x) nx u => (* TODO *)
+         | ExpDist p (Id x) (Id y) u => (* TODO *)
+         | ExpDistS (Id x) nx (Id y) u => (* TODO *)
          end.
 
-  (* TODO *)
   Definition contract {k} (r : redex k) : option term :=
       match r with
-      | rApp l (vLam x p) u => Some (lCtx_plug l (ExpSubst (pure_term_to_term p) x u))
-      | rSplS x nx (vLam (Id y) p) l =>
-          (* let z := Id (fresh_var (PLam y p)) in *)
-          (* let p := ExpSubst (Lam y (Var z)) z (pure_term_to_term p) in *)
-          (* let p := PLam y p in *)
-          let '(l', p', _) := f p (S.singleton y) ((fresh_var p) + 1) in
-          Some (lCtx_plug l (lCtx_plug l' (ExpDistS x nx (Id y) (pure_term_to_term p'))))
+      | rApp l (vLam x t) u => Some (lCtx_plug l (ExpSubst t x u))
+      | rSplS x nx (vLam (Id y) t) l =>
+          let '(l', t', _) := f p (S.singleton y) ((fresh_var t) + 1) in
+          Some (lCtx_plug l (lCtx_plug l' (ExpDistS x nx (Id y) t')))
       | rSpl x nx t => Some (ExpSubstS x nx t)
       | rLsS x nx (vLam y p) => Some (ExpDist (subst_needy x nx (vLam y p)) x y (pure_term_to_term p))
       | rLs x nx (vLam y p) => Some (ExpDistS x nx y (pure_term_to_term p))
