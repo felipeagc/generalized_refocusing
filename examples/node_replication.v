@@ -383,7 +383,7 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
   (* Here we define substitution used in the definition of contraction. *)
 
   (* substitute term s for the needed variable x in the needy term n *)
-  Fixpoint subst_needy (x:var) (n:needy x) (s : term) : term :=
+  Fixpoint subst_needy (x : var) (n : needy x) (s : term) : term :=
     match n with
     | nVar x' => s                                 (* [x][x:=s] = s *)
                                                    (* types guarantee that x'=x *)
@@ -442,19 +442,19 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
     | ExpDistS (Id x) nx (Id y) u => (* TODO *)
     end.
 
-  Fixpoint f {k} (t : term) (theta : S.t) (v : nat) : ansCtx k * term * nat :=
+  Fixpoint skeleton {k} (t : term) (theta : S.t) (v : nat) : ansCtx k * term * nat :=
     if S.is_empty (S.inter theta (fv t)) then
       let x := Id v in
-      (ansCtxSubst lEmpty x t, PVar x, v+1)
+      (ansCtxSubst ansCtxEmpty x t, PVar x, v+1)
     else match t with
          | Var x =>
-             (ansCtxEmpty, PVar x, v)
+             (ansCtxEmpty, Var x, v)
          | Lam (Id x) t =>
-             let '(l, t', v) := f t (S.add x theta) v in
+             let '(l, t', v) := skeleton t (S.add x theta) v in
              (l, Lam (Id x) t', v)
          | App p q =>
-             let '(l1, p', v) := f p theta v in
-             let '(l2, q', v) := f q theta v in
+             let '(l1, p', v) := skeleton p theta v in
+             let '(l2, q', v) := skeleton q theta v in
              (concat_l l1 l2, App p' q', v)
          | ExpSubst p (Id x) u => (* TODO *)
          | ExpSubstS (Id x) nx u => (* TODO *)
@@ -466,7 +466,7 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
       match r with
       | rApp l (vLam x t) u => Some (lCtx_plug l (ExpSubst t x u))
       | rSplS x nx (vLam (Id y) t) l =>
-          let '(l', t', _) := f p (S.singleton y) ((fresh_var t) + 1) in
+          let '(l', t', _) := skeleton p (S.singleton y) ((fresh_var t) + 1) in
           Some (lCtx_plug l (lCtx_plug l' (ExpDistS x nx (Id y) t')))
       | rSpl x nx t => Some (ExpSubstS x nx t)
       | rLsS x nx (vLam y p) => Some (ExpDist (subst_needy x nx (vLam y p)) x y (pure_term_to_term p))
