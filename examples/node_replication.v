@@ -15,6 +15,15 @@ Require Import Sets.
 (*     reduction_semantics/reduction_semantics.v *)
 (* It is a RED_SEM without totality of decompose *)
 
+Ltac assert_by_proof_irrelevance :=
+  match goal with
+  | [ H : ?P, H1 : ?P |- _  ] => assert (H=H1) by apply proof_irrelevance
+  end.
+
+Ltac subst_proof_irrelevance := assert_by_proof_irrelevance; subst.
+Ltac dep_subst_proof_irrelevance := assert_by_proof_irrelevance; dep_subst.
+
+
 Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
 
   (* We define variables as numbered identifiers. *)
@@ -103,6 +112,19 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
   | ansCtxSubst : forall {k}, ansCtx k -> var -> term -> ansCtx k         (* L[x / u] *)
   | ansCtxDist  : forall {k}, ansCtx k -> var -> var -> term -> ansCtx k. (* L[x // λy.u] *)
 
+  (* L - Lists context *)
+  Inductive sub :=
+  | subEmpty : sub                               (* <> *)
+  | subSubst : sub -> var -> term -> sub         (* L[x / u] *)
+  | subDist  : sub -> var -> var -> term -> sub. (* L[x // λy.u] *)
+
+
+  Fixpoint sub_to_term (s : sub) (t : term) :=
+    match s with
+    | subEmpty => t
+    | subSubst s' x r => ExpSubst (sub_to_term s' t) x r
+    | subDist s' x y r => ExpDist (sub_to_term s' t) x y r
+    end.
 
   (* v *)
   Inductive val : ckind -> Type :=
@@ -116,7 +138,7 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
   Coercion val_to_term : val >-> term.
 
   Inductive answer : ckind -> Type :=
-  | ansVal : forall {k}, val k -> ansCtx k -> answer k
+  | ansVal : forall {k}, val k -> sub -> answer k
   | ansNd : forall {k} x, needy x -> answer k.
 
   (* It should be made clear here that the values in this *)
@@ -144,6 +166,13 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
   | ansCtxDist s' x y r => ExpDist (ansCtx_plug s' t) x y r
   end.
 
+  Fixpoint sub_to_ansCtx {k} (s : sub) : ansCtx k :=
+    match s with
+    | subEmpty => ansCtxEmpty
+    | subSubst s' x r => ansCtxSubst (sub_to_ansCtx s') x r
+    | subDist s' x y r => ansCtxDist (sub_to_ansCtx s') x y r
+    end.
+
 
   Fixpoint needy_to_term {x} (n : needy x) : term :=
   match n with
@@ -158,7 +187,7 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
 
   Definition answer_to_term {k} (a : answer k) : term :=
   match a with
-  | ansVal v s => ansCtx_plug s v
+  | ansVal v s => sub_to_term s v
   | ansNd _ n   => needy_to_term n
   end.
 
@@ -180,11 +209,11 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
 (* Here we define the set of potential redices. *)
  (* Actually, they are just redices as defined in the paper *)
  Inductive red : ckind -> Type :=
- | rApp  : forall {k} {z:var}, ansCtx (ckv k z) -> val (ckv k z) -> term -> red (ckv k z)        (* L<v> u *)
- | rSplS : forall {k} (z:var) x, needy x -> val (ckv k z) -> ansCtx (ckv k z) -> red (ckv k z)   (* N<<x>>[[x/L<λy.p>]] *)
- | rSpl  : forall {k} {z:var} x, needy x -> term -> red (ckv k z)                                (* N<<x>>[x/t] *)
- | rLsS  : forall {k} {z:var} x, needy x -> val (ckv k z) -> red (ckv k z)                       (* N<<x>>[[x//v]] *)
- | rLs   : forall {k} {z:var} x, needy x -> val (ckv k z) -> red (ckv k z).                      (* N<<x>>[x//t] *)
+ | rApp  : forall {k}, val k -> sub -> term -> red k (* L<λx.u> t *)
+ | rSplS : forall {k} x, needy x -> val k -> sub -> red k (* N<<x>>[[x/L<λy.p>]] *)
+ | rSpl  : forall {k} x, needy x -> term -> red k                (* N<<x>>[x/t] *)
+ | rLsS  : forall {k} x, needy x -> val k -> red k               (* N<<x>>[[x//v]] *)
+ | rLs   : forall {k} x, needy x -> val k -> red k.              (* N<<x>>[x//v] *)
  (* TODO  check "val k" vs. "val (ckv k z)". the same for ansCtx *)
 
   (* Daniel: redices for `activations':
@@ -198,11 +227,11 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
 
   Definition redex_to_term {k} (r : redex k) : term :=
       match r with
-      | rApp l v t => App (ansCtx_plug l v) t
-      | rSplS _ x n v s => ExpSubstS x n (ansCtx_plug s (val_to_term v))
+      | rApp v l t => App (sub_to_term l (val_to_term v)) t
+      | rSplS x n v s => ExpSubstS x n (sub_to_term s (val_to_term v))
       | rSpl x n t => ExpSubst (needy_to_term n) x t
-      | rLsS x n (vLam v t) => ExpDistS x n v t
-      | rLs x n (vLam v t) => ExpDist (needy_to_term n) x v t
+      | rLsS x n (vLam y t) => ExpDistS x n y t
+      | rLs x n (vLam y t) => ExpDist (needy_to_term n) x y t
       end.
 
   Coercion redex_to_term : redex >-> term.
@@ -289,17 +318,53 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
  Qed.
 
 
+Lemma sub_to_term_val_injective :
+    forall {k} (s s' : sub) (v v' : val k),
+      sub_to_term s v = sub_to_term s' v' ->
+      s = s' /\ v = v'.
+  Proof with eauto.
+    intros k s.
+    induction s; intros; dependent destruction s'; inversion H.
+    destruct v; dependent destruction v'; inversion H...
+    destruct v0; dependent destruction s'; inversion H...
+    destruct v1; dependent destruction s'; inversion H...
+    destruct v0; dependent destruction v'; inversion H...
+    elim IHs with s' v1 v'; intros; subst...
+    destruct v1; dependent destruction v'; inversion H...
+    elim IHs with s' v3 v'; intros; subst...
+ Qed.
+
+Lemma sub_to_term_var_injective :
+    forall (s s' : sub) x x',
+      sub_to_term s (Var x) = sub_to_term s' (Var x') -> s = s' /\ x = x'.
+  Proof with eauto.
+    intros s.
+    induction s; intros; dependent destruction s'; inversion H...
+    elim IHs with s' x x'; intros; subst...
+    elim IHs with s' x x'; intros; subst...
+  Qed.
+
+(*DANIEL: based on strong lemmas *)
+  Lemma answer_val_not_needy :
+  forall {k} (s: sub) (v : val k) t,
+      sub_to_term s v = t ->
+      forall {x} (n : needy x), t = needy_to_term n ->   False.
+  Proof.
+   induction s; intros; dependent destruction v;
+   dependent destruction n; subst; try discriminate.
+  Admitted.
+
   Lemma answer_to_term_injective :
     forall {k} (a a' : answer k),
     answer_to_term a = answer_to_term a' -> a = a'.
   Proof with auto.
-    destruct a; dependent destruction  a'; intros...
-    - f_equal; elim ansCtx_plug_val_injective with a a0 v v0...
-    - elim ansCtx_plug_needy with a ansCtxEmpty v _ n...
-    - elim ansCtx_plug_needy with a ansCtxEmpty v _ n...
-    - inversion H.
-      elim needy_to_term_injective with n n0; intros; subst...
-      rewrite H0...
+   dependent destruction a; dependent destruction  a'; intros; inversion H;
+      subst; repeat dep_subst_proof_irrelevance.
+    - f_equal; elim sub_to_term_val_injective with s s0 v v0...
+    - eelim answer_val_not_needy; eauto.
+    - eelim answer_val_not_needy; eauto.
+    - elim needy_to_term_injective with n n0; intros; subst...
+      rewrite H...
   Qed.
 
 
@@ -320,14 +385,13 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
     intros k r r' H.
     destruct r; dependent destruction r';
     inversion H; subst.
-    - dependent destruction v; dependent destruction v0...
-      f_equal; elim ansCtx_plug_val_injective with a a0 (vLam v t) (vLam v0 t0); intros; subst...
+    - eelim sub_to_term_val_injective; intros; eauto; subst; trivial.
     - dependent destruction v; dependent destruction v0... inversion H.
     - dependent destruction v; dependent destruction v0... inversion H.
-    - elim ansCtx_plug_val_injective with a a0 v v0; intros; subst...
+    - eelim sub_to_term_val_injective; intros; eauto; subst; trivial.
     - dependent destruction v; dependent destruction v0... inversion H.
     - dependent destruction v; dependent destruction v0... inversion H.
-    - elim needy_to_term_injective with n n0; intros; subst...
+    - f_equal; elim needy_to_term_injective with n n0; intros; subst...
     - dependent destruction v... inversion H.
     - dependent destruction v... inversion H.
     - dependent destruction v; dependent destruction v0... inversion H.
@@ -340,11 +404,9 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
     - dependent destruction v; dependent destruction v0... inversion H.
     - dependent destruction v... inversion H.
     - dependent destruction v; dependent destruction v0... inversion H.
-    - elim needy_to_term_injective with n n0; intros; subst...
-      + dependent destruction v; dependent destruction v0... inversion H.
-        rewrite <- H0.
-        reflexivity.
-      + dependent destruction v; dependent destruction v0... inversion H. reflexivity.
+    - dependent destruction v; dependent destruction v0;
+      elim needy_to_term_injective with n n0; intros; subst; inversion H...
+      rewrite <- H0; reflexivity.
   Qed.
 
 
@@ -424,53 +486,72 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
     | ExpDistS (Id x) nx (Id y) u => S.union (S.remove x (fvn nx)) (S.remove y (fv u))
     end.
 
-  Fixpoint concat_l {k v1 v2} (l1 : ansCtx (ckv k v1)) (l2 : ansCtx (ckv k v2)) : ansCtx (ckv k v2) :=
+  Fixpoint concat_sub (l1 : sub) (l2 : sub) : sub :=
     match l1 with
-    | ansCtxEmpty => l2
-    | ansCtxSubst l1 v t => ansCtxSubst (concat_l l1 l2) v t
-    | ansCtxDist l1 x y u => ansCtxDist (concat_l l1 l2) x y u
+    | subEmpty => l2
+    | subSubst l1 v t => subSubst (concat_sub l1 l2) v t
+    | subDist l1 x y u => subDist (concat_sub l1 l2) x y u
     end.
 
-  Fixpoint fresh_var (t : term) : nat :=
+  (* Fixpoint fresh_var (t : term) : nat := *)
+  (*   match t with *)
+  (*   | Var (Id x) => x *)
+  (*   | Lam (Id x) p => max (fresh_var p) x *)
+  (*   | App p q => max (fresh_var p) (fresh_var q) *)
+  (*   | ExpSubst p (Id x) u => max (max (fresh_var p) (fresh_var u)) x *)
+  (*   | ExpSubstS (Id x) nx u => max (max (fresh_var u) (fresh_var (needy_to_term  nx))) x *)
+  (*   | ExpDist p (Id x) (Id y) u => max (max (max (fresh_var p) (fresh_var u)) y) x *)
+  (*   | ExpDistS (Id x) nx (Id y) u => max (max (max (fresh_var (needy_to_term nx)) (fresh_var u)) y) x *)
+  (*   end. *)
+
+  Program Fixpoint fresh_var_n {x} (nx : needy x) : nat :=
+    match nx with
+    | nVar (Id x) => x
+    | nApp _ p q => max (fresh_var p) (fresh_var q)
+    | nExpSubst (Id x) (Id y) _ nx u => max (max (max (fresh_var_n nx) (fresh_var u)) y) x
+    | nExpSubstS (Id x) (Id y) nx ny => max (max (max (fresh_var_n nx) (fresh_var_n ny)) y) x
+    | nExpDist (Id x) (Id y) (Id z) _ nx u => max (max (max (max (fresh_var_n nx) (fresh_var u)) z) y) x
+    end
+  with fresh_var (t : term) : nat :=
     match t with
     | Var (Id x) => x
-    | Lam (Id x) p => max (fresh_var t) x
+    | Lam (Id x) p => max (fresh_var p) x
     | App p q => max (fresh_var p) (fresh_var q)
-    | ExpSubst p (Id x) u => (* TODO *)
-    | ExpSubstS (Id x) nx u => (* TODO *)
-    | ExpDist p (Id x) (Id y) u => (* TODO *)
-    | ExpDistS (Id x) nx (Id y) u => (* TODO *)
+    | ExpSubst p (Id x) u => max (max (fresh_var p) (fresh_var u)) x
+    | ExpSubstS (Id x) nx u => max (max (fresh_var u) (fresh_var_n nx)) x
+    | ExpDist p (Id x) (Id y) u => max (max (max (fresh_var p) (fresh_var u)) y) x
+    | ExpDistS (Id x) nx (Id y) u => max (max (max (fresh_var_n nx) (fresh_var u)) y) x
     end.
 
-  Fixpoint skeleton {k} (t : term) (theta : S.t) (v : nat) : ansCtx k * term * nat :=
+  Fixpoint skeleton (t : term) (theta : S.t) (v : nat) : sub * term * nat :=
     if S.is_empty (S.inter theta (fv t)) then
       let x := Id v in
-      (ansCtxSubst ansCtxEmpty x t, PVar x, v+1)
+      (subSubst subEmpty x t, Var x, v+1)
     else match t with
          | Var x =>
-             (ansCtxEmpty, Var x, v)
+             (subEmpty, Var x, v)
          | Lam (Id x) t =>
              let '(l, t', v) := skeleton t (S.add x theta) v in
              (l, Lam (Id x) t', v)
          | App p q =>
              let '(l1, p', v) := skeleton p theta v in
              let '(l2, q', v) := skeleton q theta v in
-             (concat_l l1 l2, App p' q', v)
-         | ExpSubst p (Id x) u => (* TODO *)
-         | ExpSubstS (Id x) nx u => (* TODO *)
-         | ExpDist p (Id x) (Id y) u => (* TODO *)
-         | ExpDistS (Id x) nx (Id y) u => (* TODO *)
+             (concat_sub l1 l2, App p' q', v)
+         | ExpSubst p (Id x) u => (subEmpty, p, 0) (* TODO *)
+         | ExpSubstS (Id x) nx u => (subEmpty, u, 0) (* TODO *)
+         | ExpDist p (Id x) (Id y) u => (subEmpty, u, 0) (* TODO *)
+         | ExpDistS (Id x) nx (Id y) u =>  (subEmpty, u, 0)(* TODO *)
          end.
 
   Definition contract {k} (r : redex k) : option term :=
       match r with
-      | rApp l (vLam x t) u => Some (lCtx_plug l (ExpSubst t x u))
+      | rApp (vLam x t) l u => Some (ansCtx_plug (@sub_to_ansCtx k l) (ExpSubst t x u))
       | rSplS x nx (vLam (Id y) t) l =>
-          let '(l', t', _) := skeleton p (S.singleton y) ((fresh_var t) + 1) in
-          Some (lCtx_plug l (lCtx_plug l' (ExpDistS x nx (Id y) t')))
+          let '(l', t', _) := skeleton t (S.singleton y) ((fresh_var t) + 1) in
+          Some (ansCtx_plug (@sub_to_ansCtx k l) (ansCtx_plug (@sub_to_ansCtx k l') (ExpDistS x nx (Id y) t')))
       | rSpl x nx t => Some (ExpSubstS x nx t)
-      | rLsS x nx (vLam y p) => Some (ExpDist (subst_needy x nx (vLam y p)) x y (pure_term_to_term p))
-      | rLs x nx (vLam y p) => Some (ExpDistS x nx y (pure_term_to_term p))
+      | rLsS x nx (vLam y p) => Some (ExpDist (subst_needy x nx (@vLam k y p)) x y p)
+      | rLs x nx (vLam y p) => Some (ExpDistS x nx y p)
       end.
 
   (* Having this we include some basic notions *)
@@ -589,7 +670,7 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
     inversion H;
     subst.
     - exists (ansVal v l)...
-    - dependent destruction v. 
+    - dependent destruction v.
   Admitted.
       (* exists (ansNd x n). *)
     (* - exists (ansVal v l)... *)
