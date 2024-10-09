@@ -166,6 +166,14 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
   | ansCtxDist s' x y r => ExpDist (ansCtx_plug s' t) x y r
   end.
 
+  (* A function for plugging a term to an answer context *)
+  Fixpoint sub_plug (s : sub) (t : term) :=
+  match s with
+  | subEmpty => t
+  | subSubst s' x r => ExpSubst (sub_plug s' t) x r
+  | subDist s' x y r => ExpDist (sub_plug s' t) x y r
+  end.
+
   Fixpoint sub_to_ansCtx {k} (s : sub) : ansCtx k :=
     match s with
     | subEmpty => ansCtxEmpty
@@ -300,6 +308,22 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
     destruct s'. discriminate.
     inversion H. elim IHs with s' x v1...
     inversion H. elim IHs with s' x v1...
+  Qed.
+
+  Lemma sub_plug_needy :
+    forall {k} (s s' : sub) (v : val k) {x} (n : needy x),
+    sub_plug s v = sub_plug s' n -> False.
+  Proof with auto.
+    induction s; simpl; intros.
+    destruct v; destruct s'; destruct n; discriminate.
+    destruct s'. destruct n; simpl in *; try discriminate.
+    inversion H; elim IHs with subEmpty v0 x n0...
+    inversion H; elim (IHs _ _ _ _ H1).
+    inversion H.
+    destruct s'. destruct n; simpl in *; try discriminate.
+    inversion H. elim IHs with subEmpty v1 x n0...
+    inversion H; elim (IHs _ _ _ _ H1).
+    inversion H; elim (IHs _ _ _ _ H1).
   Qed.
 
   Lemma needy_to_term_injective :
@@ -644,32 +668,32 @@ Lemma sub_to_term_var_injective :
       inversion H; intros; subst...
       + dependent destruction v. dependent destruction v0. discriminate.
     - destruct n; inversion H1; subst;
-      elim lCtx_plug_needy with l lEmpty v0 x n...
-    - dependent destruction l0;
+      elim sub_plug_needy with s subEmpty v0 x n...
+    - dependent destruction s0;
       inversion H; intros; subst...
       + dependent destruction v. dependent destruction v0. discriminate.
     - destruct n0; try discriminate; inversion H; intros; subst.
-      elim lCtx_plug_needy with l lEmpty v0 _ n0_2...
-    - dependent destruction l;
+      elim sub_plug_needy with s subEmpty v0 _ n0_2...
+    - dependent destruction s;
       inversion H1; intros; subst...
       + dependent destruction v. discriminate.
-      + elim lCtx_plug_needy with l lEmpty v _ n...
+      + elim sub_plug_needy with s subEmpty v _ n...
     - destruct n0; try discriminate.
       inversion H1; subst.
       elim needy_to_term_injective with n1 n...
-    - dependent destruction l;
+    - dependent destruction s;
       inversion H1; intros; subst...
       + dependent destruction v; dependent destruction v0; discriminate.
       + dependent destruction v; dependent destruction v1; discriminate.
       + dependent destruction v; dependent destruction v2; discriminate.
     - dependent destruction v0; destruct n0; discriminate.
-    - dependent destruction l;
+    - dependent destruction s;
       inversion H1; intros; subst...
       + dependent destruction v; dependent destruction v0; discriminate.
       + dependent destruction v; dependent destruction v1; discriminate.
       + dependent destruction v. dependent destruction v2.
-        inversion H.
-        elim lCtx_plug_needy with l lEmpty (vLam v p) _ n...
+        inversion H. subst.
+        elim sub_plug_needy with s subEmpty (@vLam k v t) _ n...
     - dependent destruction v0.
       destruct n0; try discriminate.
       inversion H1; subst.
@@ -686,7 +710,7 @@ Lemma sub_to_term_var_injective :
     destruct ec; dependent destruction r;
     inversion H;
     subst.
-    - exists (ansVal v l)...
+    - exists (ansVal v s)...
     - dependent destruction v.
   Admitted.
       (* exists (ansNd x n). *)
