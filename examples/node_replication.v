@@ -504,51 +504,68 @@ Lemma sub_to_term_var_injective :
   (*   | ExpDistS (Id x) nx (Id y) u => max (max (max (fresh_var (needy_to_term nx)) (fresh_var u)) y) x *)
   (*   end. *)
 
-  Program Fixpoint fresh_var_n {x} (nx : needy x) : nat :=
+  Fixpoint fresh_ind_n {x} (nx : needy x) : nat :=
     match nx with
     | nVar (Id x) => x
-    | nApp _ p q => max (fresh_var p) (fresh_var q)
-    | nExpSubst (Id x) (Id y) _ nx u => max (max (max (fresh_var_n nx) (fresh_var u)) y) x
-    | nExpSubstS (Id x) (Id y) nx ny => max (max (max (fresh_var_n nx) (fresh_var_n ny)) y) x
-    | nExpDist (Id x) (Id y) (Id z) _ nx u => max (max (max (max (fresh_var_n nx) (fresh_var u)) z) y) x
+    | nApp _ nx t => max (fresh_ind_n nx) (fresh_ind t)
+    | nExpSubst (Id x) (Id y) _ nx u => max (max (max (fresh_ind_n nx) (fresh_ind u)) y) x
+    | nExpSubstS (Id x) (Id y) nx ny => max (max (max (fresh_ind_n nx) (fresh_ind_n ny)) y) x
+    | nExpDist (Id x) (Id y) (Id z) _ nx u => max (max (max (max (fresh_ind_n nx) (fresh_ind u)) z) y) x
     end
-  with fresh_var (t : term) : nat :=
+  with fresh_ind (t : term) : nat :=
     match t with
     | Var (Id x) => x
-    | Lam (Id x) p => max (fresh_var p) x
-    | App p q => max (fresh_var p) (fresh_var q)
-    | ExpSubst p (Id x) u => max (max (fresh_var p) (fresh_var u)) x
-    | ExpSubstS (Id x) nx u => max (max (fresh_var u) (fresh_var_n nx)) x
-    | ExpDist p (Id x) (Id y) u => max (max (max (fresh_var p) (fresh_var u)) y) x
-    | ExpDistS (Id x) nx (Id y) u => max (max (max (fresh_var_n nx) (fresh_var u)) y) x
+    | Lam (Id x) p => max (fresh_ind p) x
+    | App p q => max (fresh_ind p) (fresh_ind q)
+    | ExpSubst p (Id x) u => max (max (fresh_ind p) (fresh_ind u)) x
+    | ExpSubstS (Id x) nx u => max (max (fresh_ind u) (fresh_ind_n nx)) x
+    | ExpDist p (Id x) (Id y) u =>
+        max (max (fresh_ind p) (fresh_ind u)) (max x y)
+    | ExpDistS (Id x) nx (Id y) u =>
+        max (max (fresh_ind_n nx) (fresh_ind u)) (max x y)
     end.
 
-  Fixpoint skeleton (t : term) (theta : S.t) (v : nat) : sub * term * nat :=
+  Fixpoint skl_extract (t : term) (theta : S.t) (n : nat) : sub * term * nat :=
     if S.is_empty (S.inter theta (fv t)) then
-      let x := Id v in
-      (subSubst subEmpty x t, Var x, v+1)
+      let x := Id n in
+      (subSubst subEmpty x t, Var x, n+1)
     else match t with
          | Var x =>
-             (subEmpty, Var x, v)
+             (subEmpty, Var x, n)
          | Lam (Id x) t =>
-             let '(l, t', v) := skeleton t (S.add x theta) v in
-             (l, Lam (Id x) t', v)
+             let '(l, t', v) := skl_extract t (S.add x theta) n in
+             (l, Lam (Id x) t', n)
          | App p q =>
-             let '(l1, p', v) := skeleton p theta v in
-             let '(l2, q', v) := skeleton q theta v in
-             (concat_sub l1 l2, App p' q', v)
-         | ExpSubst p (Id x) u => (subEmpty, p, 0) (* TODO *)
-         | ExpSubstS (Id x) nx u => (subEmpty, u, 0) (* TODO *)
-         | ExpDist p (Id x) (Id y) u => (subEmpty, u, 0) (* TODO *)
-         | ExpDistS (Id x) nx (Id y) u =>  (subEmpty, u, 0)(* TODO *)
+             let '(l1, p', v) := skl_extract p theta n in
+             let '(l2, q', v) := skl_extract q theta n in
+             (concat_sub l1 l2, App p' q', n)
+         | ExpSubst p (Id x) u =>
+             let '(l1, p', n') := skl_extract p (S.add x theta) n in
+             let '(l2, u', m) := skl_extract u theta n' in
+             (concat_sub l2 l1, ExpSubst p' (Id x) u', m)
+         (*DANIEL: extraction not acting on needy terms *)
+         | ExpSubstS (Id x) nx u =>
+             let '(l1, u', m) := skl_extract u theta n in
+             (l1, ExpSubstS (Id x) nx u', m)
+         | ExpDist p (Id x) (Id y) u =>
+             let '(l1, p', n') := skl_extract p (S.add x theta) n in
+             let '(l2, u', m) := skl_extract u (S.add y theta) n' in
+             (concat_sub l2 l1, ExpDist p' (Id x) (Id y) u', m)
+         (*DANIEL: extraction not acting on needy terms *)
+         | ExpDistS (Id x) nx (Id y) u =>
+             let '(l1, u', m) := skl_extract u (S.add y theta) n in
+             (l1, ExpDistS (Id x) nx (Id y) u', m)
          end.
 
   Definition contract {k} (r : redex k) : option term :=
       match r with
       | rApp (vLam x t) l u => Some (ansCtx_plug (@sub_to_ansCtx k l) (ExpSubst t x u))
       | rSplS x nx (vLam (Id y) t) l =>
-          let '(l', t', _) := skeleton t (S.singleton y) ((fresh_var t) + 1) in
-          Some (ansCtx_plug (@sub_to_ansCtx k l) (ansCtx_plug (@sub_to_ansCtx k l') (ExpDistS x nx (Id y) t')))
+          match k with
+          | @ckv _ (Id n) =>
+               let '(l', p', _) := skl_extract t (S.singleton y) n in
+               Some (sub_to_term l (sub_to_term l' (ExpDistS x nx (Id y) p')))
+          end
       | rSpl x nx t => Some (ExpSubstS x nx t)
       | rLsS x nx (vLam y p) => Some (ExpDist (subst_needy x nx (@vLam k y p)) x y p)
       | rLs x nx (vLam y p) => Some (ExpDistS x nx y p)
@@ -591,26 +608,26 @@ Lemma sub_to_term_var_injective :
   Proof with auto.
     intros ? ? ec t v H.
     destruct ec; dependent destruction v; inversion H.
-    - try (dependent destruction l;
+    - try (dependent destruction s;
       dependent destruction v; discriminate).
-    - destruct n; try discriminate.
-      exists (ansNd x n); inversion H; subst...
-    - dependent destruction l; dependent destruction v; try discriminate.
-      injection H1; intros; subst...
-      exists (ansVal (vLam v p) l)...
-    - destruct n; try discriminate.
-      injection H; intros; subst;
-      exists (ansNd _ n0); simpl; auto.
-    - dependent destruction l; dependent destruction v; try discriminate.
-      injection H1; intros; subst...
-      exists (ansVal (vLam v p) l)...
-    - destruct n; try discriminate.
-      injection H; intros; subst;
-      exists (ansNd _ n0); simpl; auto.
-    - dependent destruction l; dependent destruction v; try discriminate.
     - destruct n0; try discriminate.
+      exists (ansNd x n0); inversion H; subst...
+    - dependent destruction s; dependent destruction v; try discriminate.
+      injection H1; intros; subst...
+      exists (ansVal (vLam v t1) s)...
+    - destruct n0; try discriminate.
+      injection H; intros; subst;
+      exists (ansNd _ n1); simpl; auto.
+    - dependent destruction s; dependent destruction v; try discriminate.
+      injection H1; intros; subst...
+      exists (ansVal (vLam v t1) s)...
+    - destruct n0; try discriminate.
+      injection H; intros; subst;
+      exists (ansNd _ n1); simpl; auto.
+    - dependent destruction s; dependent destruction v; try discriminate.
+    - destruct n1; try discriminate.
       inversion H1; subst...
-      exists (ansNd _ n0_2)...
+      exists (ansNd _ n1_2)...
   Qed.
 
 
@@ -623,7 +640,7 @@ Lemma sub_to_term_var_injective :
     destruct r; destruct v; intro H; inversion H;
     try (dependent destruction a0;
     dependent destruction v; try discriminate).
-    - dependent destruction l0;
+    - dependent destruction s0;
       inversion H; intros; subst...
       + dependent destruction v. dependent destruction v0. discriminate.
     - destruct n; inversion H1; subst;
