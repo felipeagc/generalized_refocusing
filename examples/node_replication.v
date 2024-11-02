@@ -139,14 +139,6 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
   Definition value := answer.
   Hint Unfold value.
 
-  (* A function for plugging a term to an answer context *)
-  Fixpoint sub_plug (s : sub) (t : term) :=
-  match s with
-  | subEmpty => t
-  | subSubst s' x r => ExpSubst (sub_plug s' t) x r
-  | subDist s' x y r => ExpDist (sub_plug s' t) x y r
-  end.
-
   Fixpoint needy_to_term {x} (n : needy x) : term :=
   match n with
   | nVar x => Var x
@@ -199,9 +191,9 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
     reflexivity.
   Qed.
 
-  Lemma sub_plug_needy :
+  Lemma sub_to_term_needy :
     forall {k} (s s' : sub) (v : val k) {x} (n : needy x),
-    sub_plug s v = sub_plug s' n -> False.
+    sub_to_term s v = sub_to_term s' n -> False.
   Proof with auto.
     induction s; simpl; intros.
     destruct v; destruct s'; destruct n; discriminate.
@@ -490,16 +482,16 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
       inversion H; intros; subst...
       + dependent destruction v. dependent destruction v0. discriminate.
     - destruct n; inversion H1; subst;
-      elim sub_plug_needy with s subEmpty v0 x n...
+      elim sub_to_term_needy with s subEmpty v0 x n...
     - dependent destruction s0;
       inversion H; intros; subst...
       + dependent destruction v. dependent destruction v0. discriminate.
     - destruct n0; try discriminate; inversion H; intros; subst.
-      elim sub_plug_needy with s subEmpty v0 _ n0_2...
+      elim sub_to_term_needy with s subEmpty v0 _ n0_2...
     - dependent destruction s;
       inversion H1; intros; subst...
       + dependent destruction v. discriminate.
-      + elim sub_plug_needy with s subEmpty v _ n...
+      + elim sub_to_term_needy with s subEmpty v _ n...
     - destruct n0; try discriminate.
       inversion H1; subst.
       elim needy_to_term_injective with n1 n...
@@ -515,7 +507,7 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
       + dependent destruction v; dependent destruction v1; discriminate.
       + dependent destruction v. dependent destruction v2.
         inversion H. subst.
-        elim sub_plug_needy with s subEmpty (@vLam E v t) _ n...
+        elim sub_to_term_needy with s subEmpty (@vLam E v t) _ n...
     - dependent destruction v0.
       destruct n0; try discriminate.
       inversion H1; subst.
