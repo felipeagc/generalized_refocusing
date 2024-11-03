@@ -39,9 +39,9 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
   (* The main ingredient of a reduction semantics is a grammar of contexts.  *)
   (* We start with nonterminal symbols, which are called here "context kinds". *)
 
-  (* Weak call-by-need is a uniform strategy, so one context kind E is enough. *)
+  (* Weak call-by-need is a uniform strategy, so one context kind N is enough. *)
 
-  Inductive ck := E.
+  Inductive ck := N.
 
   Definition ckind := ck.
   Hint Unfold  ckind.
@@ -133,8 +133,8 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
   Coercion val_to_term : val >-> term.
 
   Inductive answer : ckind -> Type :=
-  | ansVal : val E -> sub -> answer E
-  | ansNd : forall x, needy x -> answer E.
+  | ansVal : val N -> sub -> answer N
+  | ansNd : forall x, needy x -> answer N.
 
   Definition value := answer.
   Hint Unfold value.
@@ -306,18 +306,18 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
       rewrite <- H0; reflexivity.
   Qed.
 
-  (* E *)
+  (* N *)
   Inductive eck : ckind -> ckind -> Type :=
-  | eckApp : forall {k1 k2}, term -> eck k1 k2                (* E -> E t *)
-  | eckSubst : forall {k1 k2}, var -> term -> eck k1 k2       (* E -> E[x / t] *)
-  | eckDist : forall {k1 k2}, var -> var -> term -> eck k1 k2 (* E -> E[x // λy.u] *)
-  | eckPlugSubst : forall {k1 k2} x, needy x -> eck k1 k2.  (* E -> E<<x>>[x/E] *)
+  | eckApp : forall {k1 k2}, term -> eck k1 k2                (* N -> N t *)
+  | eckSubst : forall {k1 k2}, var -> term -> eck k1 k2       (* N -> N[x / t] *)
+  | eckDist : forall {k1 k2}, var -> var -> term -> eck k1 k2 (* N -> N[x // λy.u] *)
+  | eckPlugSubst : forall {k1 k2} x, needy x -> eck k1 k2.  (* N -> N<<x>>[x/N] *)
 
   Definition elem_context_kinded := eck.
   Hint Unfold elem_context_kinded.
 
   (* The starting symbol in the grammar *)
-  Definition init_ckind : ckind :=  E.
+  Definition init_ckind : ckind :=  N.
 
   (* The function for plugging a term into an elementary context *)
   Definition elem_plug {k1 k2} (t : term) (ec : elem_context_kinded k1 k2) : term :=
@@ -419,7 +419,6 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
   (* Again a technicality: the plug function is injective. *)
   Lemma elem_plug_injective1 : forall {k1 k2} (ec : elem_context_kinded k1 k2) {t0 t1},
       ec:[t0] = ec:[t1] -> t0 = t1.
-
   Proof.
     intros ? ? ec t0 t1 H.
     destruct ec;
@@ -507,7 +506,7 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
       + dependent destruction v; dependent destruction v1; discriminate.
       + dependent destruction v. dependent destruction v2.
         inversion H. subst.
-        elim sub_to_term_needy with s subEmpty (@vLam E v t) _ n...
+        elim sub_to_term_needy with s subEmpty (@vLam N v t) _ n...
     - dependent destruction v0.
       destruct n0; try discriminate.
       inversion H1; subst.
@@ -544,14 +543,14 @@ Module Lam_cbn_Strategy <: REF_STRATEGY Lam_cbnd_PreRefSem.
   (* Here is the down-arrow function. *)
   (* It is used to decompose a term.  *)
   Definition dec_term t k : elem_dec k :=
-    match k with E =>
+    match k with N =>
       match t with
-      | App t1 t2 => ed_dec E t1 (eckApp t2)
+      | App t1 t2 => ed_dec N t1 (eckApp t2)
       | Var x     => ed_val (ansNd _ (nVar x))
       | Lam x t1  => ed_val (ansVal (vLam x t1) subEmpty)
-      | ExpSubst t1 x t2 => ed_dec E t1 (eckSubst x t2)
-      | ExpSubstS x nx t => ed_dec E t (eckPlugSubst x nx)
-      | ExpDist t x y u => ed_dec E t (eckDist x y u)
+      | ExpSubst t1 x t2 => ed_dec N t1 (eckSubst x t2)
+      | ExpSubstS x nx t => ed_dec N t (eckPlugSubst x nx)
+      | ExpDist t x y u => ed_dec N t (eckDist x y u)
       | ExpDistS x nx y u => ed_red (rLsS x nx (vLam y u))
       end
     end.
@@ -565,7 +564,7 @@ Module Lam_cbn_Strategy <: REF_STRATEGY Lam_cbnd_PreRefSem.
   Qed.
 
   Definition dec_context {k k': ckind} (ec: elem_context_kinded k k') (v: value k') : elem_dec k :=
-  match k, k' with E, E =>
+  match k, k' with N, N =>
     match ec, v with
     | eckApp t, ansVal v' s => ed_red (rApp v' s t)
     | eckApp t, ansNd _ n => ed_val (ansNd _ (nApp _ n t))
