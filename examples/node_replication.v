@@ -51,16 +51,16 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
   | Lam       : var -> expr -> expr                         (* lambda abstraction *)
   | App       : expr -> expr -> expr                        (* application *)
 
-  | ExpSubst  : expr -> var -> expr -> expr                 (* explicit substitution t[x / u] *)
+  | ExpSubst  : expr -> var -> expr -> expr                 (* explicit substitution t[x \ u] *)
                                                             (* will evaluate t first *)
 
-  | ExpSubstS : forall x : var, needy x -> expr -> expr     (* strict explicit substitution n_x[[x / u]] *)
+  | ExpSubstS : forall x : var, needy x -> expr -> expr     (* strict explicit substitution n_x[[x \ u]] *)
                                                             (* will evaluate u first *)
 
-  | ExpDist   :                                             (* explicit distributor t[x // λy.u] *)
+  | ExpDist   :                                             (* explicit distributor t[x \\ λy.u] *)
       expr -> var -> var -> expr -> expr                    (* will evaluate t first *)
 
-  | ExpDistS  : forall x : var,                             (* strict explicit distributor n_x[[x // λy.u]] *)
+  | ExpDistS  : forall x : var,                             (* strict explicit distributor n_x[[x \\ λy.u]] *)
       needy x -> var -> expr -> expr                        (* will evaluate u first *)
 
   with
@@ -69,17 +69,17 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
     | nApp       : forall x : var, needy x -> expr -> needy x       (* (n_x t) *)
 
     | nExpSubst  : forall x y,
-        x <> y -> needy x -> expr -> needy x (* n_x[y / u] *)
+        x <> y -> needy x -> expr -> needy x (* n_x[y \ u] *)
     | nExpSubstS : forall x y,
-        needy y -> needy x -> needy x        (* strict n_y[[y / n_x]] *)
+        needy y -> needy x -> needy x        (* strict n_y[[y \ n_x]] *)
 
-    | nExpDist  : forall x y z : var,                               (* n_x[y // λz.u] *)
+    | nExpDist  : forall x y z : var,                               (* n_x[y \\ λz.u] *)
         x <> y -> needy x -> expr -> needy x.
 
   Notation " t @ s " := (App t s) (at level 40).
   Notation " # x " := (Var x) (at level 7).
-  Notation " t [ x / u ] " := (ExpSubst x u t) (at level 45).
-  Notation " t [ x '//' 'λ' y , u ] " := (ExpDist x y u t) (at level 46).
+  Notation " t [ x \ u ] " := (ExpSubst x u t) (at level 45).
+  Notation " t [ x '\\' 'λ' y , u ] " := (ExpDist x y u t) (at level 46).
   Notation " 'λ'  x , t " := (Lam x t) (at level 50).
 
   Definition term := expr.
@@ -111,8 +111,8 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
   (* L - Lists context *)
   Inductive sub :=
   | subEmpty : sub                               (* <> *)
-  | subSubst : sub -> var -> term -> sub         (* L[x / u] *)
-  | subDist  : sub -> var -> var -> term -> sub. (* L[x // λy.u] *)
+  | subSubst : sub -> var -> term -> sub         (* L[x \ u] *)
+  | subDist  : sub -> var -> var -> term -> sub. (* L[x \\ λy.u] *)
 
 
   Fixpoint sub_to_term (s : sub) (t : term) :=
@@ -163,10 +163,10 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
  (* Actually, they are just redices as defined in the paper *)
  Inductive red : ckind -> Type :=
  | rApp  : forall {k}, val k -> sub -> term -> red k (* L<λx.u> t *)
- | rSplS : forall {k} x, needy x -> val k -> sub -> red k (* N<<x>>[[x/L<λy.p>]] *)
- | rSpl  : forall {k} x, needy x -> term -> red k         (* N<<x>>[x/t] *)
- | rLsS  : forall {k} x, needy x -> val k -> red k        (* N<<x>>[[x//v]] *)
- | rLs   : forall {k} x, needy x -> val k -> red k.       (* N<<x>>[x//v] *)
+ | rSplS : forall {k} x, needy x -> val k -> sub -> red k (* N<<x>>[[x \ L<λy.p>]] *)
+ | rSpl  : forall {k} x, needy x -> term -> red k         (* N<<x>>[x \ t] *)
+ | rLsS  : forall {k} x, needy x -> val k -> red k        (* N<<x>>[[x \\ v]] *)
+ | rLs   : forall {k} x, needy x -> val k -> red k.       (* N<<x>>[x \\ v] *)
 
   Definition redex := red.
   Hint Unfold redex.
@@ -309,9 +309,9 @@ Module Lam_cbnd_PreRefSem <: PRE_RED_SEM.
   (* N *)
   Inductive eck : ckind -> ckind -> Type :=
   | eckApp : forall {k1 k2}, term -> eck k1 k2                (* N -> N t *)
-  | eckSubst : forall {k1 k2}, var -> term -> eck k1 k2       (* N -> N[x / t] *)
-  | eckDist : forall {k1 k2}, var -> var -> term -> eck k1 k2 (* N -> N[x // λy.u] *)
-  | eckPlugSubst : forall {k1 k2} x, needy x -> eck k1 k2.  (* N -> N<<x>>[x/N] *)
+  | eckSubst : forall {k1 k2}, var -> term -> eck k1 k2       (* N -> N[x \ t] *)
+  | eckDist : forall {k1 k2}, var -> var -> term -> eck k1 k2 (* N -> N[x \\ λy.u] *)
+  | eckPlugSubst : forall {k1 k2} x, needy x -> eck k1 k2.  (* N -> N<<x>>[x \ N] *)
 
   Definition elem_context_kinded := eck.
   Hint Unfold elem_context_kinded.
